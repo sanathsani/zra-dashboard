@@ -11,7 +11,7 @@ import { useState, useEffect, useMemo } from "react";
 
 // LOCAL: use the "Anyone" deployment URL (no auth required)
 // PRODUCTION: switch to "Anyone with Google account" URL
-const WEB_APP_URL = "http://localhost:3001";
+const WEB_APP_URL = "/api/data";
 
 export function useLiveData() {
   const [state, setState] = useState({
