@@ -592,7 +592,7 @@ function ShiftSummary({ monthly, daily: dailyProp, agents, summary }) {
             </ResponsiveContainer>
           </Card>
           <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
-            {SD.agents.map(a=>{
+            {agents.map(a=>{
               const v=a[mo.substring(0,3)]||0;
               return(
                 <div key={a.name} style={{textAlign:"center",padding:"14px 10px",background:D.page,borderRadius:D.r,border:`1px solid ${D.div}`}}>
@@ -641,7 +641,7 @@ function ShiftSummary({ monthly, daily: dailyProp, agents, summary }) {
       {tab==="monthly"&&(
         <div style={{display:"flex",flexDirection:"column",gap:14}}>
           <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12}}>
-            {SD.monthly.map(m=>(
+            {monthly.map(m=>(
               <div key={m.month} style={{background:D.card,borderRadius:D.r,boxShadow:D.sh1,padding:18,border:`1px solid ${D.div}`}}>
                 <div style={{fontSize:13,fontWeight:700,color:D.t1,marginBottom:10}}>{m.month} 2026</div>
                 <div style={{fontSize:32,fontWeight:800,color:D.p,lineHeight:1}}>{m.total}</div>
@@ -667,7 +667,7 @@ function ShiftSummary({ monthly, daily: dailyProp, agents, summary }) {
                 <YAxis tick={{fontSize:9,fill:D.t3}}/>
                 <Tooltip content={<CTip/>}/>
                 <Legend wrapperStyle={{fontSize:11}}/>
-                {SD.agents.map(a=><Bar key={a.name} dataKey={a.name} fill={a.color} radius={[3,3,0,0]}/>)}
+                {agents.map(a=><Bar key={a.name} dataKey={a.name} fill={a.color} radius={[3,3,0,0]}/>)}
               </BarChart>
             </ResponsiveContainer>
           </Card>
