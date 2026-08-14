@@ -1,7 +1,9 @@
 import { useState, useMemo, useRef, useEffect } from "react";
-
+import { useLiveData, adaptSummary, adaptMonthly, adaptDaily, adaptShifts, adaptAgents, adaptCats, adaptFleet } from "./useLiveData";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, AreaChart, Area, PieChart, Pie, Cell, Legend } from "recharts";
+// ─── GLOBAL MOBILE HOOK ───────────────────────────────────────────────────────
 function useIsMobile() {
-  const [mob, setMob] = useState(() => window.innerWidth < 768);
+  const [mob, setMob] = useState(() => typeof window !== "undefined" ? window.innerWidth < 768 : false);
   useEffect(() => {
     const fn = () => setMob(window.innerWidth < 768);
     window.addEventListener("resize", fn);
@@ -9,13 +11,16 @@ function useIsMobile() {
   }, []);
   return mob;
 }
-import { useLiveData, adaptSummary, adaptMonthly, adaptDaily, adaptShifts, adaptAgents, adaptCats, adaptFleet } from "./useLiveData";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, AreaChart, Area, PieChart, Pie, Cell, Legend } from "recharts";
+
+
 
 if (typeof document !== "undefined" && !document.getElementById("zra-fonts")) {
-  const st = document.createElement("style");
-  st.innerHTML = "html,body{margin:0;padding:0;width:100%;min-height:100vh;background:#F8FAFF;}*{box-sizing:border-box;}";
-  document.head.appendChild(st);
+  if (!document.getElementById("zra-global")) {
+    const st = document.createElement("style");
+    st.id = "zra-global";
+    st.innerHTML = "html,body,#root{margin:0;padding:0;width:100%;min-height:100vh;background:#F8FAFF;}*{box-sizing:border-box;}";
+    document.head.appendChild(st);
+  }
   const lk = document.createElement("link");
   lk.id = "zra-fonts"; lk.rel = "stylesheet";
   lk.href = "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code:wght@400;500&display=swap";
@@ -36,7 +41,7 @@ const D = {
   bd:"#E2E8F0", div:"#F1F5F9",
   sh1:"0 1px 3px rgba(15,35,86,0.07)",
   sh2:"0 4px 14px rgba(15,35,86,0.10)",
-  r:8, rs:4, sw:200, hh:52,
+  r:8, rs:4, sw:220, hh:56,
   f:"'Inter',system-ui,sans-serif",
   fm:"'Fira Code','Courier New',monospace",
 };
@@ -655,7 +660,7 @@ function ShiftSummary({ monthly, daily: dailyProp, agents, summary }) {
       )}
       {tab==="monthly"&&(
         <div style={{display:"flex",flexDirection:"column",gap:14}}>
-          <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(3,1fr)",gap:12}}>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12}}>
             {monthly.map(m=>(
               <div key={m.month} style={{background:D.card,borderRadius:D.r,boxShadow:D.sh1,padding:18,border:`1px solid ${D.div}`}}>
                 <div style={{fontSize:13,fontWeight:700,color:D.t1,marginBottom:10}}>{m.month} 2026</div>
@@ -775,6 +780,7 @@ function AgentsPage({ agents }) {
 
 // ─── PAGE: UNSOLVED ──────────────────────────────────────────────────────────
 function UnsolvedPage({fleet}) {
+  const isMobile = useIsMobile();
   const [filter, setFilter] = useState("all");
   const uns = fleet.unsolved;
   const filtered = filter==="all"?uns:uns.filter(r=>r[FX.ST]===filter);
@@ -837,6 +843,7 @@ function UnsolvedPage({fleet}) {
 
 // ─── PAGE: CUSTOMERS ─────────────────────────────────────────────────────────
 function CustomerList({fleet, onSelect}) {
+  const isMobile = useIsMobile();
   const [q, setQ] = useState("");
   const list = fleet.custArr.filter(c=>c.name.toLowerCase().includes(q.toLowerCase()));
   return(
@@ -886,7 +893,7 @@ function CustomerDetail({name, fleet, onRobot, onBack}) {
           <span style={{fontSize:10,color:D.t3}}>{cc.tot} tickets · {cc.robotCount} tracked robots</span>
         </div>
       </div>
-      <div style={{display:"grid",gridTemplateColumns:isMobile?"repeat(2,1fr)":"repeat(5,1fr)",gap:10}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:10}}>
         <Kpi label="Total"      value={cc.tot}         border={D.p}  small/>
         <Kpi label="L1"         value={cc.l1}          border={D.ok} small/>
         <Kpi label="L3"         value={cc.l3}          border={D.wn} small/>
@@ -975,7 +982,7 @@ function RobotDetail({robotId, fleet, onBack}) {
           <div style={{fontSize:10,color:D.t3,marginTop:2}}>{rb.cust}</div>
         </div>
       </div>
-      <div style={{display:"grid",gridTemplateColumns:isMobile?"repeat(2,1fr)":"repeat(4,1fr)",gap:10}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
         <Kpi label="Total"     value={rb.tot}          border={sev}  small/>
         <Kpi label="L3"        value={l3c}             border={D.wn} small/>
         <Kpi label="Resolved"  value={solv}            border={D.ok} small/>
@@ -1042,6 +1049,7 @@ function AnomalyDetail({a, fleet, onOpenRobot}){
 }
 
 function AnomalyPage({fleet, onOpenRobot}) {
+  const isMobile = useIsMobile();
   const allAnomalies = fleet.anomalies;
   const [readIds, setReadIds] = useState(new Set());
   const [showHistory, setShowHistory] = useState(false);
@@ -1083,7 +1091,7 @@ function AnomalyPage({fleet, onOpenRobot}) {
       )}
 
       {active.length>0&&(
-        <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"340px 1fr",gap:14,alignItems:"start"}}>
+        <div style={{display:"grid",gridTemplateColumns:"min(340px,38%) 1fr",gap:14,alignItems:"start"}}>
           <div style={{display:"flex",flexDirection:"column",gap:8}}>
             {active.map(a=>{
               const isSel=selId===a.id;
@@ -1153,12 +1161,7 @@ export default function App() {
   const [selCust,  setSelCust]  = useState(null);
   const [selRobot, setSelRobot] = useState(null);
   const [sideOpen, setSideOpen] = useState(false);
-  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
-  useEffect(() => {
-    const fn = () => setIsMobile(window.innerWidth < 768);
-    window.addEventListener("resize", fn);
-    return () => window.removeEventListener("resize", fn);
-  }, []);
+  const isMobile = useIsMobile();
 
   const { loading, error, data, role, ts } = useLiveData();
 
@@ -1205,10 +1208,10 @@ export default function App() {
       <div style={{width:D.sw,background:D.sidebar,flexShrink:0,display:"flex",flexDirection:"column",position:"fixed",top:0,left:0,height:"100vh",zIndex:10,boxShadow:"2px 0 8px rgba(0,0,0,0.14)",transform:isMobile&&!sideOpen?"translateX(-100%)":"translateX(0)",transition:"transform 0.25s ease"}}>
         <div style={{padding:"18px 16px 14px",borderBottom:"1px solid rgba(255,255,255,0.08)"}}>
           <div style={{display:"flex",alignItems:"center",gap:8}}>
-            <div style={{width:26,height:26,borderRadius:6,background:D.sidebarA,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,color:"white",fontFamily:D.fm}}>SK</div>
+            <div style={{width:26,height:26,borderRadius:6,background:D.sidebarA,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,color:"white",fontFamily:D.fm}}>ZR</div>
             <div>
-              <div style={{fontSize:11,fontWeight:800,color:"white",letterSpacing:"0.1em",textTransform:"uppercase"}}>Skild-AI L1 Support Dashboard</div>
-              <div style={{fontSize:9,color:D.sN,marginTop:1}}>Team & customer Analytics</div>
+              <div style={{fontSize:11,fontWeight:800,color:"white",letterSpacing:"0.1em",textTransform:"uppercase"}}>ZRA CEC</div>
+              <div style={{fontSize:9,color:D.sN,marginTop:1}}>Customer Excellence Center</div>
             </div>
           </div>
         </div>
@@ -1245,20 +1248,19 @@ export default function App() {
       </div>
 
       {isMobile&&sideOpen&&<div onClick={()=>setSideOpen(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.4)",zIndex:9}}/>}
-      <div style={{marginLeft:isMobile?0:D.sw,flex:1,display:"flex",flexDirection:"column"}}>
+
+      <div style={{marginLeft:isMobile?0:D.sw,flex:1,display:"flex",flexDirection:"column",minWidth:0,overflow:"hidden"}}>
         <div style={{position:"sticky",top:0,zIndex:9,background:"#FFFFFF",borderBottom:`1px solid ${D.div}`,height:D.hh,display:"flex",alignItems:"center",padding:"0 22px",gap:10,boxShadow:"0 1px 3px rgba(0,0,0,0.04)"}}>
           <div style={{flex:1,display:"flex",alignItems:"center",gap:10}}>
-            {isMobile&&<button onClick={()=>setSideOpen(o=>!o)} style={{background:"none",border:"none",cursor:"pointer",fontSize:20,color:D.t1,padding:"0 4px",lineHeight:1}}>☰</button>}
-            <div>
+            {isMobile&&<button onClick={()=>setSideOpen(o=>!o)} style={{background:"none",border:"none",cursor:"pointer",fontSize:20,color:D.t1,padding:"0 4px",lineHeight:1,flexShrink:0}}>☰</button>}
             <div style={{fontSize:14,fontWeight:700,color:D.t1}}>{pageTitle}</div>
             {selRobot&&<div style={{fontSize:10,color:D.t3,marginTop:1,fontFamily:D.fm}}>{selRobot}</div>}
             {selCust&&!selRobot&&<div style={{fontSize:10,color:D.t3,marginTop:1}}>{selCust}</div>}
-            </div>
           </div>
           <span style={{background:D.pLt,color:D.p,fontSize:10,fontWeight:600,padding:"3px 10px",borderRadius:99}}>{summary?.dateFrom} – {summary?.dateTo}</span>
           <span style={{background:D.div,color:D.t3,fontSize:10,padding:"3px 10px",borderRadius:99}}>{summary?.total??'—'} tickets</span>
         </div>
-        <div style={{flex:1,overflowY:"auto",padding:16,minWidth:0,overflowX:"hidden"}}>
+        <div style={{flex:1,overflowY:"auto",padding:14,minWidth:0}}>
           {view==="overview"  && <Overview summary={summary} monthly={monthly} daily={daily} shifts={shifts} agents={agents} cats={cats}/>}
           {view==="shift"     && <ShiftSummary monthly={monthly} daily={daily} agents={agents} summary={summary}/>}
           {view==="agents"    && <AgentsPage agents={agents}/>}
