@@ -3,6 +3,9 @@ import { useLiveData, adaptSummary, adaptMonthly, adaptDaily, adaptShifts, adapt
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, AreaChart, Area, PieChart, Pie, Cell, Legend } from "recharts";
 
 if (typeof document !== "undefined" && !document.getElementById("zra-fonts")) {
+  const st = document.createElement("style");
+  st.innerHTML = "html,body{margin:0;padding:0;width:100%;min-height:100vh;background:#F8FAFF;}*{box-sizing:border-box;}";
+  document.head.appendChild(st);
   const lk = document.createElement("link");
   lk.id = "zra-fonts"; lk.rel = "stylesheet";
   lk.href = "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code:wght@400;500&display=swap";
@@ -1183,7 +1186,7 @@ export default function App() {
   );
 
   return (
-    <div style={{display:"flex",minHeight:"100vh",background:D.page,fontFamily:D.f,color:D.t1,fontSize:14}}>
+    <div style={{display:"flex",minHeight:"100vh",width:"100%",background:D.page,fontFamily:D.f,color:D.t1,fontSize:14}}>
       <div style={{width:D.sw,background:D.sidebar,flexShrink:0,display:"flex",flexDirection:"column",position:"fixed",top:0,left:0,height:"100vh",zIndex:10,boxShadow:"2px 0 8px rgba(0,0,0,0.14)",transform:isMobile&&!sideOpen?"translateX(-100%)":"translateX(0)",transition:"transform 0.25s ease"}}>
         <div style={{padding:"18px 16px 14px",borderBottom:"1px solid rgba(255,255,255,0.08)"}}>
           <div style={{display:"flex",alignItems:"center",gap:8}}>
