@@ -1,4 +1,14 @@
 import { useState, useMemo, useRef, useEffect } from "react";
+
+function useIsMobile() {
+  const [mob, setMob] = useState(() => window.innerWidth < 768);
+  useEffect(() => {
+    const fn = () => setMob(window.innerWidth < 768);
+    window.addEventListener("resize", fn);
+    return () => window.removeEventListener("resize", fn);
+  }, []);
+  return mob;
+}
 import { useLiveData, adaptSummary, adaptMonthly, adaptDaily, adaptShifts, adaptAgents, adaptCats, adaptFleet } from "./useLiveData";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, AreaChart, Area, PieChart, Pie, Cell, Legend } from "recharts";
 
@@ -316,7 +326,8 @@ function TicketTable({rows,maxH}){
 }
 
 // ─── PAGE: OVERVIEW ──────────────────────────────────────────────────────────
-function Overview({ summary, monthly, daily, shifts, agents, cats }) {`n  const isMobile = useIsMobile();
+function Overview({ summary, monthly, daily, shifts, agents, cats }) {
+  const isMobile = useIsMobile();
   const sm = {
     total:        summary?.total        || 0,
     resolved:     summary?.resolved     || 0,
@@ -519,7 +530,8 @@ function Overview({ summary, monthly, daily, shifts, agents, cats }) {`n  const 
 }
 
 // ─── PAGE: SHIFT SUMMARY ─────────────────────────────────────────────────────
-function ShiftSummary({ monthly, daily: dailyProp, agents, summary }) {`n  const isMobile = useIsMobile();
+function ShiftSummary({ monthly, daily: dailyProp, agents, summary }) {
+  const isMobile = useIsMobile();
   const [tab, setTab] = useState("monthly");
   const [mo, setMo] = useState("july");
   const TS = (a) => ({padding:"6px 14px",borderRadius:D.rs,border:"none",cursor:"pointer",fontSize:12,fontWeight:600,fontFamily:D.f,background:a?D.p:"transparent",color:a?D.sA:D.t3});
@@ -705,7 +717,8 @@ function ShiftSummary({ monthly, daily: dailyProp, agents, summary }) {`n  const
 }
 
 // ─── PAGE: AGENTS ─────────────────────────────────────────────────────────────
-function AgentsPage({ agents }) {`n  const isMobile = useIsMobile();
+function AgentsPage({ agents }) {
+  const isMobile = useIsMobile();
   agents = agents || [];
   const agentMonthly = ["June","July","August"].map(label => {
     const k = label.substring(0,3).toLowerCase();
@@ -858,6 +871,7 @@ function CustomerList({fleet, onSelect}) {
 }
 
 function CustomerDetail({name, fleet, onRobot, onBack}) {
+  const isMobile = useIsMobile();
   const cc = fleet.cmap[name];
   if (!cc) return <div style={{padding:20,color:D.t3}}>Customer not found.</div>;
   const robStats = cc.robots.map(rid=>fleet.rmap[rid]).filter(Boolean).sort((a,b)=>b.tot-a.tot);
@@ -941,6 +955,7 @@ function CustomerDetail({name, fleet, onRobot, onBack}) {
 }
 
 function RobotDetail({robotId, fleet, onBack}) {
+  const isMobile = useIsMobile();
   const rb = fleet.rmap[robotId];
   if (!rb) return <div style={{padding:20,color:D.t3}}>Robot not found.</div>;
   const tix = rb.tix.slice().sort((a,b)=>a[FX.DT].localeCompare(b[FX.DT]));
@@ -1257,4 +1272,3 @@ export default function App() {
     </div>
   );
 }
-
