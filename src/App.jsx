@@ -316,7 +316,7 @@ function TicketTable({rows,maxH}){
 }
 
 // ─── PAGE: OVERVIEW ──────────────────────────────────────────────────────────
-function Overview({ summary, monthly, daily, shifts, agents, cats }) {
+function Overview({ summary, monthly, daily, shifts, agents, cats }) {`n  const isMobile = useIsMobile();
   const sm = {
     total:        summary?.total        || 0,
     resolved:     summary?.resolved     || 0,
@@ -519,7 +519,7 @@ function Overview({ summary, monthly, daily, shifts, agents, cats }) {
 }
 
 // ─── PAGE: SHIFT SUMMARY ─────────────────────────────────────────────────────
-function ShiftSummary({ monthly, daily: dailyProp, agents, summary }) {
+function ShiftSummary({ monthly, daily: dailyProp, agents, summary }) {`n  const isMobile = useIsMobile();
   const [tab, setTab] = useState("monthly");
   const [mo, setMo] = useState("july");
   const TS = (a) => ({padding:"6px 14px",borderRadius:D.rs,border:"none",cursor:"pointer",fontSize:12,fontWeight:600,fontFamily:D.f,background:a?D.p:"transparent",color:a?D.sA:D.t3});
@@ -705,7 +705,7 @@ function ShiftSummary({ monthly, daily: dailyProp, agents, summary }) {
 }
 
 // ─── PAGE: AGENTS ─────────────────────────────────────────────────────────────
-function AgentsPage({ agents }) {
+function AgentsPage({ agents }) {`n  const isMobile = useIsMobile();
   agents = agents || [];
   const agentMonthly = ["June","July","August"].map(label => {
     const k = label.substring(0,3).toLowerCase();
@@ -1257,3 +1257,4 @@ export default function App() {
     </div>
   );
 }
+
