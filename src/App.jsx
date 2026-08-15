@@ -27,6 +27,16 @@ if (typeof document !== "undefined" && !document.getElementById("zra-fonts")) {
   document.head.appendChild(lk);
 }
 
+
+// ─── DATE FORMATTER ──────────────────────────────────────────────────────────
+const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+function fmtDate(iso) {
+  if (!iso) return "";
+  const p = iso.split("-");
+  if (p.length < 3) return iso;
+  return `${parseInt(p[2])} ${MONTHS[parseInt(p[1])-1]} ${p[0]}`;
+}
+
 const D = {
   page:"#F8FAFF", card:"#FFFFFF", sidebar:"#0F2356", sidebarH:"#1A3070", sidebarA:"#1D4ED8",
   p:"#1D4ED8", pLt:"#DBEAFE", pDk:"#1E3A8A",
@@ -172,9 +182,23 @@ function computeFleet(raw) {
 }
 
 // ─── SHARED COMPONENTS ───────────────────────────────────────────────────────
-function Kpi({label,value,sub,border,alert,small}){
+function Kpi({label,value,sub,border,alert,small,onClick}){
+  const [hov,setHov]=useState(false);
   return(
-    <div style={{background:D.card,borderRadius:D.r,boxShadow:D.sh1,padding:small?"12px 14px":"16px 18px",borderLeft:`3px solid ${border||D.p}`,position:"relative"}}>
+    <div
+      onClick={onClick}
+      onMouseEnter={()=>setHov(true)}
+      onMouseLeave={()=>setHov(false)}
+      style={{
+        background:D.card,borderRadius:D.r,
+        boxShadow:hov?"0 8px 24px rgba(15,35,86,0.16), 0 2px 6px rgba(15,35,86,0.08)":D.sh1,
+        padding:small?"12px 14px":"16px 18px",
+        borderLeft:`3px solid ${border||D.p}`,
+        position:"relative",
+        transform:hov?"translateY(-3px) scale(1.01)":"none",
+        transition:"box-shadow 0.18s, transform 0.18s",
+        cursor:onClick?"pointer":"default",
+      }}>
       {alert&&<div style={{position:"absolute",top:7,right:7,width:6,height:6,borderRadius:"50%",background:D.er}}/>}
       <div style={{fontSize:small?20:26,fontWeight:800,color:D.t1,lineHeight:1}}>{value}</div>
       <div style={{fontSize:10,color:D.t3,marginTop:4,textTransform:"uppercase",letterSpacing:"0.06em",fontWeight:500}}>{label}</div>
@@ -256,10 +280,10 @@ function UnsolvedTable({rows}){
             const isEdit=editing===id;
             return(
               <tr key={i} style={{borderBottom:`1px solid ${D.div}`}}
-                onMouseEnter={e=>e.currentTarget.style.background=D.page}
-                onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                onMouseEnter={e=>{e.currentTarget.style.background="#EFF6FF";e.currentTarget.style.boxShadow="inset 3px 0 0 "+D.p;}}
+                onMouseLeave={e=>{e.currentTarget.style.background="transparent";e.currentTarget.style.boxShadow="none";}}>
                 <td style={{padding:"7px 10px",fontFamily:D.fm,fontSize:10,color:D.p,fontWeight:500,whiteSpace:"nowrap"}}>{id}</td>
-                <td style={{padding:"7px 10px",fontSize:10,color:D.t3,whiteSpace:"nowrap"}}>{r[FX.DT]}</td>
+                <td style={{padding:"7px 10px",fontSize:10,color:D.t3,whiteSpace:"nowrap"}}>{fmtDate(r[FX.DT])}</td>
                 <td style={{padding:"7px 10px",fontSize:11,color:D.t2,maxWidth:140,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r[FX.CS]}</td>
                 <td style={{padding:"7px 10px"}}><Tag type={r[FX.TY]} sm/></td>
                 <td style={{padding:"7px 10px",fontSize:11,color:D.t1,maxWidth:220,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r[FX.IS]}</td>
@@ -311,10 +335,10 @@ function TicketTable({rows,maxH}){
             const st=stMap[(r[FX.ST]||"").toLowerCase()]||{c:D.t3,l:r[FX.ST]};
             return(
               <tr key={i} style={{borderBottom:`1px solid ${D.div}`}}
-                onMouseEnter={e=>e.currentTarget.style.background=D.page}
-                onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                onMouseEnter={e=>{e.currentTarget.style.background="#EFF6FF";e.currentTarget.style.boxShadow="inset 3px 0 0 "+D.p;}}
+                onMouseLeave={e=>{e.currentTarget.style.background="transparent";e.currentTarget.style.boxShadow="none";}}>
                 <td style={{padding:"7px 10px",fontFamily:D.fm,fontSize:10,color:D.p,fontWeight:500,whiteSpace:"nowrap"}}>{r[FX.ID]}</td>
-                <td style={{padding:"7px 10px",fontSize:10,color:D.t3,whiteSpace:"nowrap"}}>{r[FX.DT]}</td>
+                <td style={{padding:"7px 10px",fontSize:10,color:D.t3,whiteSpace:"nowrap"}}>{fmtDate(r[FX.DT])}</td>
                 <td style={{padding:"7px 10px",fontSize:11,color:D.t2,maxWidth:130,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r[FX.CS]}</td>
                 <td style={{padding:"7px 10px",fontSize:11,color:D.t2,fontWeight:500}}>{r[FX.OW]}</td>
                 <td style={{padding:"7px 10px"}}><Tag type={r[FX.TY]} sm/></td>
@@ -326,6 +350,58 @@ function TicketTable({rows,maxH}){
           })}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+
+// ─── DATE FILTER COMPONENT ───────────────────────────────────────────────────
+function DateFilter({from, to, onChange}) {
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState({from, to});
+  const months = [
+    {label:"Jun 2026", from:"2026-06-01", to:"2026-06-30"},
+    {label:"Jul 2026", from:"2026-07-01", to:"2026-07-31"},
+    {label:"Aug 2026", from:"2026-08-01", to:"2026-08-31"},
+    {label:"All",      from:"2026-06-01", to:"2026-08-31"},
+  ];
+  const label = `${fmtDate(from)} – ${fmtDate(to)}`;
+  return(
+    <div style={{position:"relative"}}>
+      <button onClick={()=>setOpen(o=>!o)}
+        style={{background:D.pLt,color:D.p,fontSize:10,fontWeight:600,padding:"4px 12px",borderRadius:99,
+          border:`1px solid ${D.p}40`,cursor:"pointer",fontFamily:D.f,display:"flex",alignItems:"center",gap:6,
+          boxShadow:open?"0 2px 8px rgba(29,78,216,0.2)":"none",transition:"box-shadow 0.15s"}}>
+        📅 {label} ▾
+      </button>
+      {open&&(
+        <div style={{position:"absolute",top:"calc(100% + 6px)",right:0,background:D.card,borderRadius:D.r,
+          boxShadow:"0 8px 24px rgba(15,35,86,0.18)",border:`1px solid ${D.bd}`,zIndex:100,minWidth:240,overflow:"hidden"}}>
+          <div style={{padding:"10px 14px",borderBottom:`1px solid ${D.div}`,fontSize:11,fontWeight:700,color:D.t3,textTransform:"uppercase",letterSpacing:"0.06em"}}>Quick Select</div>
+          {months.map(m=>(
+            <div key={m.label} onClick={()=>{onChange(m.from,m.to);setOpen(false);}}
+              style={{padding:"9px 14px",cursor:"pointer",fontSize:12,fontWeight:600,color:D.t1,
+                borderBottom:`1px solid ${D.div}`,transition:"background 0.1s"}}
+              onMouseEnter={e=>e.currentTarget.style.background=D.pLt}
+              onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+              {m.label}
+            </div>
+          ))}
+          <div style={{padding:"10px 14px",borderTop:`1px solid ${D.div}`}}>
+            <div style={{fontSize:10,color:D.t3,marginBottom:6,fontWeight:600}}>Custom Range</div>
+            <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
+              <input type="date" value={draft.from} onChange={e=>setDraft(d=>({...d,from:e.target.value}))}
+                style={{border:`1px solid ${D.bd}`,borderRadius:D.rs,padding:"4px 8px",fontSize:11,fontFamily:D.f,color:D.t1,outline:"none",flex:1,minWidth:110}}/>
+              <span style={{fontSize:10,color:D.t3}}>to</span>
+              <input type="date" value={draft.to}   onChange={e=>setDraft(d=>({...d,to:e.target.value}))}
+                style={{border:`1px solid ${D.bd}`,borderRadius:D.rs,padding:"4px 8px",fontSize:11,fontFamily:D.f,color:D.t1,outline:"none",flex:1,minWidth:110}}/>
+            </div>
+            <button onClick={()=>{onChange(draft.from,draft.to);setOpen(false);}}
+              style={{marginTop:8,background:D.p,color:"white",border:"none",borderRadius:D.rs,padding:"5px 14px",
+                cursor:"pointer",fontSize:11,fontWeight:600,fontFamily:D.f,width:"100%"}}>Apply</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -535,7 +611,7 @@ function Overview({ summary, monthly, daily, shifts, agents, cats }) {
 }
 
 // ─── PAGE: SHIFT SUMMARY ─────────────────────────────────────────────────────
-function ShiftSummary({ monthly, daily: dailyProp, agents, summary }) {
+function ShiftSummary({ monthly, daily: dailyProp, agents, summary, onNavAgent }) {
   const isMobile = useIsMobile();
   const [tab, setTab] = useState("monthly");
   const [mo, setMo] = useState("july");
@@ -615,7 +691,11 @@ function ShiftSummary({ monthly, daily: dailyProp, agents, summary }) {
             {agents.map(a=>{
               const v=a[mo.substring(0,3)]||0;
               return(
-                <div key={a.name} style={{textAlign:"center",padding:"14px 10px",background:D.page,borderRadius:D.r,border:`1px solid ${D.div}`}}>
+                <div key={a.name}
+                  onClick={()=>onNavAgent&&onNavAgent(a.name)}
+                  style={{textAlign:"center",padding:"14px 10px",background:D.page,borderRadius:D.r,border:`1px solid ${D.div}`,cursor:onNavAgent?"pointer":"default",transition:"all 0.15s"}}
+                  onMouseEnter={e=>{if(onNavAgent){e.currentTarget.style.boxShadow="0 6px 20px rgba(15,35,86,0.12)";e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.borderColor=a.color;}}}
+                  onMouseLeave={e=>{e.currentTarget.style.boxShadow="none";e.currentTarget.style.transform="none";e.currentTarget.style.borderColor=D.div;}}>
                   <div style={{width:30,height:30,borderRadius:"50%",background:a.color,margin:"0 auto 8px",display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:700,color:"white"}}>{a.name[0]}</div>
                   <div style={{fontSize:22,fontWeight:800,color:a.color}}>{v}</div>
                   <div style={{fontSize:11,fontWeight:600,color:D.t1,marginTop:2}}>{a.name}</div>
@@ -696,7 +776,7 @@ function ShiftSummary({ monthly, daily: dailyProp, agents, summary }) {
       {tab==="yearly"&&(
         <div style={{display:"flex",flexDirection:"column",gap:14}}>
           <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12}}>
-            <Kpi label="2026 Total" value={summary?.total||0} sub={`${summary?.dateFrom||""} – ${summary?.dateTo||""}`} border={D.p}/>
+            <Kpi label="2026 Total" value={summary?.total||0} sub={`${fmtDate(summary?.dateFrom)||""} – ${fmtDate(summary?.dateTo)||""}`} border={D.p}/>
             <Kpi label="Resolved"   value={summary?.resolved||0} sub={`${summary?.total?Math.round(summary.resolved/summary.total*100):0}% rate`} border={D.ok}/>
             <Kpi label="Unresolved" value={(summary?.pending||0)+(summary?.inProgress||0)} sub={`${summary?.pending||0} pending / ${summary?.inProgress||0} in-progress`} border={D.wn} alert/>
           </div>
@@ -722,7 +802,7 @@ function ShiftSummary({ monthly, daily: dailyProp, agents, summary }) {
 }
 
 // ─── PAGE: AGENTS ─────────────────────────────────────────────────────────────
-function AgentsPage({ agents }) {
+function AgentsPage({ agents, onNavAgent }) {
   const isMobile = useIsMobile();
   agents = agents || [];
   const agentMonthly = ["June","July","August"].map(label => {
@@ -735,7 +815,11 @@ function AgentsPage({ agents }) {
     <div style={{display:"flex",flexDirection:"column",gap:14}}>
       <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:14}}>
         {agents.map(a=>(
-          <div key={a.name} style={{background:D.card,borderRadius:D.r,boxShadow:D.sh1,padding:18,border:`1px solid ${D.div}`}}>
+          <div key={a.name}
+            onClick={()=>onNavAgent&&onNavAgent(a.name)}
+            style={{background:D.card,borderRadius:D.r,boxShadow:D.sh1,padding:18,border:`1px solid ${D.div}`,cursor:onNavAgent?"pointer":"default",transition:"box-shadow 0.15s,transform 0.15s"}}
+            onMouseEnter={e=>{if(onNavAgent){e.currentTarget.style.boxShadow="0 8px 24px rgba(15,35,86,0.16)";e.currentTarget.style.transform="translateY(-2px)";}}}
+            onMouseLeave={e=>{e.currentTarget.style.boxShadow=D.sh1;e.currentTarget.style.transform="none";}}>
             <div style={{display:"flex",gap:12,alignItems:"flex-start"}}>
               <div style={{width:40,height:40,borderRadius:"50%",background:a.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,fontWeight:800,color:"white",flexShrink:0}}>{a.name[0]}</div>
               <div style={{flex:1}}>
@@ -779,7 +863,7 @@ function AgentsPage({ agents }) {
 }
 
 // ─── PAGE: UNSOLVED ──────────────────────────────────────────────────────────
-function UnsolvedPage({fleet}) {
+function UnsolvedPage({fleet, onNavCustomer, onNavAgent}) {
   const isMobile = useIsMobile();
   const [filter, setFilter] = useState("all");
   const uns = fleet.unsolved;
@@ -816,8 +900,12 @@ function UnsolvedPage({fleet}) {
         <Card title="Unresolved by Customer">
           <div style={{display:"flex",flexDirection:"column",gap:7}}>
             {custArr.map(([cust,count])=>(
-              <div key={cust} style={{display:"flex",alignItems:"center",gap:10}}>
-                <span style={{fontSize:11,color:D.t2,width:180,flexShrink:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{cust}</span>
+              <div key={cust}
+                onClick={()=>onNavCustomer&&onNavCustomer(cust)}
+                style={{display:"flex",alignItems:"center",gap:10,cursor:onNavCustomer?"pointer":"default",borderRadius:D.rs,padding:"2px 4px",transition:"background 0.1s"}}
+                onMouseEnter={e=>{if(onNavCustomer)e.currentTarget.style.background=D.pLt;}}
+                onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                <span style={{fontSize:11,color:onNavCustomer?D.p:D.t2,width:180,flexShrink:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontWeight:onNavCustomer?600:400}}>{cust}</span>
                 <Bar2 value={count} max={custArr[0][1]} color={D.er} h={6}/>
                 <span style={{fontSize:12,fontWeight:700,color:D.er,width:22,textAlign:"right"}}>{count}</span>
               </div>
@@ -1051,7 +1139,18 @@ function AnomalyDetail({a, fleet, onOpenRobot}){
 function AnomalyPage({fleet, onOpenRobot}) {
   const isMobile = useIsMobile();
   const allAnomalies = fleet.anomalies;
-  const [readIds, setReadIds] = useState(new Set());
+  const STORAGE_KEY = "zra_anomaly_read_ids";
+  const [readIds, setReadIdsRaw] = useState(() => {
+    try { return new Set(JSON.parse(localStorage.getItem(STORAGE_KEY)||"[]")); }
+    catch { return new Set(); }
+  });
+  const setReadIds = (updater) => {
+    setReadIdsRaw(prev => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify([...next])); } catch{}
+      return next;
+    });
+  };
   const [showHistory, setShowHistory] = useState(false);
   const [selId, setSelId] = useState(allAnomalies[0]?.id || null);
 
@@ -1139,6 +1238,86 @@ function AnomalyPage({fleet, onOpenRobot}) {
   );
 }
 
+
+// ─── AGENT DETAIL PAGE ───────────────────────────────────────────────────────
+function AgentDetail({agentName, fleet, agents, onBack}) {
+  const agent = (agents||[]).find(a=>a.name===agentName);
+  if (!agent) return <div style={{padding:20,color:D.t3}}>Agent not found.</div>;
+  // All tickets owned by this agent (from RAW, not fleet)
+  const tix = RAW.filter(r=>r[FX.OW]===agentName);
+  const solved = tix.filter(r=>r[FX.ST]==="solved"||r[FX.ST]==="closed").length;
+  const pending = tix.filter(r=>r[FX.ST]==="pending").length;
+  const inProg  = tix.filter(r=>r[FX.ST]==="in progress").length;
+  const l1 = tix.filter(r=>r[FX.LV]==="L1").length;
+  const l3 = tix.filter(r=>r[FX.LV]==="L3").length;
+  const typeCount={};
+  tix.forEach(r=>{ typeCount[r[FX.TY]]=(typeCount[r[FX.TY]]||0)+1; });
+  const typeArr = Object.entries(typeCount).sort((a,b)=>b[1]-a[1]).map(([type,count])=>({type,count}));
+  const custCount={};
+  tix.forEach(r=>{ custCount[r[FX.CS]]=(custCount[r[FX.CS]]||0)+1; });
+  const custArr = Object.entries(custCount).sort((a,b)=>b[1]-a[1]).slice(0,10);
+  return(
+    <div style={{display:"flex",flexDirection:"column",gap:14}}>
+      <div style={{display:"flex",alignItems:"center",gap:12}}>
+        <button onClick={onBack} style={{border:`1px solid ${D.bd}`,background:D.card,color:D.t2,borderRadius:D.r,padding:"6px 12px",cursor:"pointer",fontSize:12,fontFamily:D.f,fontWeight:500}}>← Back</button>
+        <div style={{display:"flex",alignItems:"center",gap:12}}>
+          <div style={{width:44,height:44,borderRadius:"50%",background:agent.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,fontWeight:800,color:"white"}}>{agentName[0]}</div>
+          <div>
+            <div style={{fontSize:18,fontWeight:800,color:D.t1}}>{agentName}</div>
+            <div style={{fontSize:11,color:D.t3,marginTop:2}}>L1 Support Agent · ZRA CEC</div>
+          </div>
+        </div>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
+        <Kpi label="Total Tickets" value={tix.length}  border={agent.color} small/>
+        <Kpi label="Resolved"      value={solved}       border={D.ok} small/>
+        <Kpi label="L1 Handled"    value={l1}           border={D.p}  small/>
+        <Kpi label="L3 Escalated"  value={l3}           border={D.wn} small/>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
+        <Card title="Issue Categories Handled">
+          <div style={{display:"flex",flexDirection:"column",gap:7}}>
+            {typeArr.map(t=>(
+              <div key={t.type} style={{display:"flex",alignItems:"center",gap:10}}>
+                <div style={{display:"flex",alignItems:"center",gap:5,width:200,flexShrink:0}}>
+                  <div style={{width:7,height:7,borderRadius:2,background:CC[t.type]||"#94A3B8",flexShrink:0}}/>
+                  <span style={{fontSize:11,color:D.t2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.type}</span>
+                </div>
+                <Bar2 value={t.count} max={typeArr[0].count} color={CC[t.type]||"#94A3B8"} h={6}/>
+                <span style={{fontSize:12,fontWeight:700,color:D.t1,width:22,textAlign:"right"}}>{t.count}</span>
+              </div>
+            ))}
+          </div>
+        </Card>
+        <Card title="Customers Handled">
+          <div style={{display:"flex",flexDirection:"column",gap:7}}>
+            {custArr.map(([cust,count])=>(
+              <div key={cust} style={{display:"flex",alignItems:"center",gap:10}}>
+                <span style={{fontSize:11,color:D.t2,width:170,flexShrink:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{cust}</span>
+                <Bar2 value={count} max={custArr[0][1]} color={agent.color} h={6}/>
+                <span style={{fontSize:12,fontWeight:700,color:D.t1,width:22,textAlign:"right"}}>{count}</span>
+              </div>
+            ))}
+          </div>
+        </Card>
+      </div>
+      <Card title="Monthly Breakdown">
+        <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10}}>
+          {[["June",agent.june||0],["July",agent.july||0],["August",agent.aug||0]].map(([mo,v])=>(
+            <div key={mo} style={{background:D.page,borderRadius:D.r,padding:"14px 16px",border:`1px solid ${D.div}`,textAlign:"center"}}>
+              <div style={{fontSize:26,fontWeight:800,color:agent.color}}>{v}</div>
+              <div style={{fontSize:11,color:D.t3,marginTop:4}}>{mo} 2026</div>
+            </div>
+          ))}
+        </div>
+      </Card>
+      <Card title={`All ${tix.length} Tickets`} noPad>
+        <TicketTable rows={tix.slice().reverse()} maxH={360}/>
+      </Card>
+    </div>
+  );
+}
+
 // ─── NAV ─────────────────────────────────────────────────────────────────────
 const NAV=[
   {group:"Operations",items:[
@@ -1162,6 +1341,9 @@ export default function App() {
   const [selRobot, setSelRobot] = useState(null);
   const [sideOpen, setSideOpen] = useState(false);
   const isMobile = useIsMobile();
+  const [dateFrom, setDateFrom] = useState("2026-06-01");
+  const [dateTo,   setDateTo]   = useState("2026-08-31");
+  const [selAgent, setSelAgent] = useState(null);
 
   const { loading, error, data, role, ts } = useLiveData();
 
@@ -1175,12 +1357,48 @@ export default function App() {
     ...a, color: AGENT_COLORS[i % AGENT_COLORS.length],
   })), [data]);
 
-  const navTo = (v) => { setView(v); setSelCust(null); setSelRobot(null); };
+  // ── date-filtered RAW ──────────────────────────────────────────────────────
+  const filteredRaw = useMemo(() => {
+    const from = new Date(dateFrom + "T00:00:00");
+    const to   = new Date(dateTo   + "T23:59:59");
+    return RAW.filter(r => {
+      const d = new Date(r[1] + "T00:00:00");
+      return d >= from && d <= to;
+    });
+  }, [dateFrom, dateTo]);
+
+  const filteredFleet = useMemo(() => {
+    // recompute fleet from filtered rows
+    const cmap={}, rmap={};
+    let tot=0,l1c=0,l3c=0,solv=0,pend=0,opn=0;
+    for (const r of filteredRaw) {
+      const lvl=r[4], st=r[5], ty=r[6], robot=r[7], cust=r[2];
+      tot++; if(lvl==="L1") l1c++; else l3c++;
+      if(st==="solved"||st==="closed") solv++; else if(st==="pending") pend++; else opn++;
+      if(!cmap[cust]) cmap[cust]={name:cust,tot:0,l1:0,l3:0,solv:0,pend:0,opn:0,types:{},robots:new Set(),tix:[]};
+      const cc=cmap[cust];
+      cc.tot++; if(lvl==="L1") cc.l1++; else cc.l3++;
+      if(st==="solved"||st==="closed") cc.solv++; else if(st==="pending") cc.pend++; else cc.opn++;
+      cc.types[ty]=(cc.types[ty]||0)+1; if(robot) cc.robots.add(robot); cc.tix.push(r);
+      if(robot){
+        if(!rmap[robot]) rmap[robot]={id:robot,cust,tot:0,types:{},tix:[]};
+        const rb=rmap[robot]; rb.tot++; rb.types[ty]=(rb.types[ty]||0)+1; rb.tix.push(r);
+      }
+    }
+    for(const cc of Object.values(cmap)){cc.robotCount=cc.robots.size; cc.robots=[...cc.robots];}
+    const custArr=Object.values(cmap).sort((a,b)=>b.tot-a.tot);
+    const robArr=Object.values(rmap).sort((a,b)=>b.tot-a.tot);
+    const unsolved=filteredRaw.filter(r=>r[5]==="pending"||r[5]==="in progress");
+    const anomalies=buildAnomalies(filteredRaw);
+    return {tot,l1c,l3c,solv,pend,opn,custArr,robArr,cmap,rmap,unsolved,anomalies};
+  }, [filteredRaw]);
+
+  const navTo = (v) => { setView(v); setSelCust(null); setSelRobot(null); setSelAgent(null); };
 
   const pageTitle = ({
     overview:  "Overview",
     shift:     "Shift Summary",
-    agents:    "Agents",
+    agents:    selAgent ? selAgent + " — Detail" : "Agents",
     unsolved:  "Unsolved Tickets",
     customers: selRobot ? "Robot Detail" : selCust ? "Customer Detail" : "Customers",
     anomalies: "Anomalies",
@@ -1257,18 +1475,19 @@ export default function App() {
             {selRobot&&<div style={{fontSize:10,color:D.t3,marginTop:1,fontFamily:D.fm}}>{selRobot}</div>}
             {selCust&&!selRobot&&<div style={{fontSize:10,color:D.t3,marginTop:1}}>{selCust}</div>}
           </div>
-          <span style={{background:D.pLt,color:D.p,fontSize:10,fontWeight:600,padding:"3px 10px",borderRadius:99}}>{summary?.dateFrom} – {summary?.dateTo}</span>
+          <DateFilter from={dateFrom} to={dateTo} onChange={(f,t)=>{setDateFrom(f);setDateTo(t);}}/>
           <span style={{background:D.div,color:D.t3,fontSize:10,padding:"3px 10px",borderRadius:99}}>{summary?.total??'—'} tickets</span>
         </div>
         <div style={{flex:1,overflowY:"auto",padding:14,minWidth:0}}>
           {view==="overview"  && <Overview summary={summary} monthly={monthly} daily={daily} shifts={shifts} agents={agents} cats={cats}/>}
-          {view==="shift"     && <ShiftSummary monthly={monthly} daily={daily} agents={agents} summary={summary}/>}
-          {view==="agents"    && <AgentsPage agents={agents}/>}
-          {view==="unsolved"  && <UnsolvedPage fleet={fleet}/>}
-          {view==="customers" && !selCust  && <CustomerList fleet={fleet} onSelect={setSelCust}/>}
-          {view==="customers" && selCust && !selRobot && <CustomerDetail name={selCust} fleet={fleet} onRobot={setSelRobot} onBack={()=>setSelCust(null)}/>}
-          {view==="customers" && selCust && selRobot  && <RobotDetail robotId={selRobot} fleet={fleet} onBack={()=>setSelRobot(null)}/>}
-          {view==="anomalies" && <AnomalyPage fleet={fleet} onOpenRobot={id=>{setSelRobot(id);setSelCust(fleet?.rmap?.[id]?.cust||null);setView("customers");}}/>}
+          {view==="shift"     && <ShiftSummary monthly={monthly} daily={daily} agents={agents} summary={summary} onNavAgent={n=>{setSelAgent(n);setView("agents");}}/>}
+          {view==="agents"    && !selAgent && <AgentsPage agents={agents} onNavAgent={n=>{setSelAgent(n);}}/>}
+          {view==="agents"    && selAgent  && <AgentDetail agentName={selAgent} fleet={filteredFleet} agents={agents} onBack={()=>setSelAgent(null)}/>}
+          {view==="unsolved"  && <UnsolvedPage fleet={filteredFleet} onNavCustomer={c=>{setSelCust(c);setView("customers");}} onNavAgent={a=>setView("agents")}/>}
+          {view==="customers" && !selCust  && <CustomerList fleet={filteredFleet} onSelect={setSelCust}/>}
+          {view==="customers" && selCust && !selRobot && <CustomerDetail name={selCust} fleet={filteredFleet} onRobot={setSelRobot} onBack={()=>setSelCust(null)}/>}
+          {view==="customers" && selCust && selRobot  && <RobotDetail robotId={selRobot} fleet={filteredFleet} onBack={()=>setSelRobot(null)}/>}
+          {view==="anomalies" && <AnomalyPage fleet={filteredFleet} onOpenRobot={id=>{setSelRobot(id);setSelCust(filteredFleet?.rmap?.[id]?.cust||null);setView("customers");}}/>}
         </div>
       </div>
     </div>
