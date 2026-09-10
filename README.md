@@ -1,16 +1,53 @@
-# React + Vite
+# ZRA CEC Dashboard
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Live L1 support-operations dashboard for the Skild · Fetch fleet. Reads the
+Zendesk ticket log published by an Apps Script web app and renders it as one
+filterable view of volume, resolution, agents, customers, robots and alerts.
 
-Currently, two official plugins are available:
+## How the data flows
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+```
+Google Sheet  →  Apps Script web app  →  /api/data (serverless proxy)  →  React app
+```
 
-## React Compiler
+`api/data.js` proxies the Apps Script endpoint so the browser never hits a
+cross-origin redirect. In development, `vite.config.js` proxies the same path.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Every number the UI shows is derived from the live `rows` array in `src/data.js`.
+There is no snapshot or sample data anywhere in the app: change the date range
+and every page — including Unsolved, Customers, Robots and Anomalies —
+recalculates from the same filtered slice.
 
-## Expanding the Oxlint configuration
+## Layout
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+| Path | Purpose |
+|---|---|
+| `src/data.js` | Fetching, date-range filtering, and every derived metric |
+| `src/theme.jsx` | Design tokens, the validated chart palette, light/dark provider |
+| `src/styles.css` | Base stylesheet — all colors come from tokens |
+| `src/components.jsx` | Cards, stat tiles, tables, the date-range control |
+| `src/charts.jsx` | Recharts wrappers with shared axis, tooltip and legend rules |
+| `src/pages/` | One file per section |
+
+## Design rules the charts follow
+
+- One y-axis per plot — never a dual-axis chart.
+- Categorical colors are assigned per entity, in a fixed order, so filtering the
+  data never repaints the series that survive.
+- The 8-slot palette is validated for colorblind separation and contrast against
+  both the light and dark chart surfaces; anything past slot 8 falls back to a
+  neutral.
+- Status colors are reserved for alerts and always ship with a label, never
+  color alone.
+- Every plot has a hover tooltip, and every value is also reachable in a table.
+
+## Running it
+
+```bash
+npm install
+npm run dev      # http://localhost:5173
+npm run build
+npm run lint
+```
+
+Deployed from `main`.
