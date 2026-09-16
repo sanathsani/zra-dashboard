@@ -58,7 +58,7 @@ export function RankRow({ label, color, value, max, pct, nameWidth = 190, onClic
       tabIndex={onClick ? 0 : undefined}
       onKeyDown={onClick ? e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(); } } : undefined}
     >
-      <span className="rankrow__name" style={{ width: `min(${nameWidth}px, 44%)`, flexShrink: 0 }}>
+      <span className="rankrow__name" style={{ width: `min(${nameWidth}px, max(46%, 150px))`, flexShrink: 0 }}>
         {dot && <span className="rankrow__dot" style={{ background: color || t.accent }} />}
         <span className="rankrow__label" title={label}>{label}</span>
       </span>
@@ -130,8 +130,9 @@ export function Empty({ icon = "○", title, body }) {
 
 /* ─── Ticket table ────────────────────────────────────────────────────── */
 /** The table view — every value on screen is readable without a tooltip. */
-export function TicketTable({ rows, maxH = 420, colorFor, columns }) {
+export function TicketTable({ rows, maxH = 420, colorFor, columns, onSelect }) {
   const cols = columns || ["ticket", "date", "customer", "owner", "type", "issue", "status", "level"];
+  const onRow = onSelect;
   const head = {
     ticket: "Ticket", date: "Date", customer: "Customer", owner: "Owner",
     type: "Category", issue: "Issue", status: "Status", level: "Lvl", robot: "Robot", shift: "Shift",
@@ -143,15 +144,16 @@ export function TicketTable({ rows, maxH = 420, colorFor, columns }) {
         <thead><tr>{cols.map(c => <th key={c}>{head[c]}</th>)}</tr></thead>
         <tbody>
           {rows.map((r, i) => (
-            <tr key={r.id + "-" + i}>
+            <tr key={r.id + "-" + i} onClick={onRow ? () => onRow(r) : undefined}
+              style={onRow ? { cursor: "pointer" } : undefined}>
               {cols.map(c => {
                 switch (c) {
                   case "ticket": return <td key={c}><span className="mono" style={{ color: "var(--accentText)" }}>{r.id}</span></td>;
                   case "date": return <td key={c} style={{ whiteSpace: "nowrap" }}>{fmtDate(r.dt)}</td>;
-                  case "customer": return <td key={c} className="cell--clip" style={{ maxWidth: 170 }} title={r.customer}>{r.customer}</td>;
+                  case "customer": return <td key={c} className="cell--tight" title={r.customer}>{r.customer}</td>;
                   case "owner": return <td key={c} className="cell--strong" style={{ whiteSpace: "nowrap" }}>{r.owner || "—"}</td>;
                   case "type": return <td key={c}><Tag type={r.type} color={colorFor?.(r.type)} /></td>;
-                  case "issue": return <td key={c} className="cell--clip cell--strong" title={r.issue}>{r.issue}</td>;
+                  case "issue": return <td key={c} className="cell--wrap cell--strong" title={r.issue}><span>{r.issue}</span></td>;
                   case "status": return <td key={c}><StatusDot status={r.status} /></td>;
                   case "level": return <td key={c}><LevelBadge level={r.level} /></td>;
                   case "robot": return <td key={c}><RobotId id={r.robot_id} /></td>;
@@ -164,6 +166,42 @@ export function TicketTable({ rows, maxH = 420, colorFor, columns }) {
         </tbody>
       </table>
     </div>
+  );
+}
+
+/* ─── Drill-in drawer ─────────────────────────────────────────────────── */
+/** Any number on the dashboard can open the tickets it was counted from. */
+export function TicketDrawer({ open, title, sub, rows, colorFor, columns, onClose, children }) {
+  useEffect(() => {
+    if (!open) return;
+    const onEsc = e => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", onEsc);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.removeEventListener("keydown", onEsc); document.body.style.overflow = prev; };
+  }, [open, onClose]);
+
+  if (!open) return null;
+  return (
+    <>
+      <button className="scrim scrim--drawer" onClick={onClose} aria-label="Close" />
+      <aside className="drawer fadein" role="dialog" aria-label={title}>
+        <header className="drawer__head">
+          <div style={{ minWidth: 0 }}>
+            <h2 className="drawer__title">{title}</h2>
+            {sub && <div className="drawer__sub">{sub}</div>}
+          </div>
+          <button className="btn btn--icon" onClick={onClose} aria-label="Close">✕</button>
+        </header>
+        <div className="drawer__body">
+          {children}
+          {rows && (
+            <TicketTable rows={rows} maxH={null} colorFor={colorFor}
+              columns={columns || ["ticket", "date", "customer", "owner", "issue", "status"]} />
+          )}
+        </div>
+      </aside>
+    </>
   );
 }
 

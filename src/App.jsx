@@ -10,13 +10,14 @@ import { ThemeProvider, useTheme, colorFor } from "./theme";
 import {
   useLiveData, derive, buildStableOrder, dataBounds, presetRanges, fmtDate,
 } from "./data";
-import { DateRange, ThemeToggle } from "./components";
+import { DateRange, ThemeToggle, TicketDrawer } from "./components";
 import Overview from "./pages/Overview";
 import Trends from "./pages/Trends";
 import { AgentsPage, AgentDetail } from "./pages/Agents";
 import Unsolved from "./pages/Unsolved";
 import { CustomerList, CustomerDetail, RobotDetail } from "./pages/Customers";
 import Anomalies from "./pages/Anomalies";
+import Faults from "./pages/Faults";
 import "./styles.css";
 
 const NAV = [
@@ -27,6 +28,7 @@ const NAV = [
     { id: "unsolved", label: "Unsolved",      icon: "◷", badge: "unsolved", alert: true },
   ]},
   { group: "Intelligence", items: [
+    { id: "faults",    label: "Fault Analysis", icon: "◈", badge: "faults" },
     { id: "customers", label: "Customers", icon: "◫" },
     { id: "anomalies", label: "Anomalies", icon: "◮", badge: "anomalies", alert: true },
   ]},
@@ -34,7 +36,8 @@ const NAV = [
 
 const TITLES = {
   overview: "Overview", trends: "Shift Summary", agents: "Agents",
-  unsolved: "Unsolved Tickets", customers: "Customers", anomalies: "Anomalies",
+  unsolved: "Unsolved Tickets", faults: "Fault Analysis",
+  customers: "Customers", anomalies: "Anomalies",
 };
 
 function Dashboard() {
@@ -47,6 +50,7 @@ function Dashboard() {
   const [selAgent, setSelAgent] = useState(null);
   const [sideOpen, setSideOpen] = useState(false);
   const [range, setRange] = useState(null); // null → the data's own full span
+  const [drill, setDrill] = useState(null); // the tickets behind a clicked figure
 
   const bounds = useMemo(() => dataBounds(data), [data]);
   const stableOrder = useMemo(() => buildStableOrder(data), [data]);
@@ -64,7 +68,11 @@ function Dashboard() {
   const colorForAgent = name => colorFor(name, stableOrder.agents, t);
   const colorForCategory = name => colorFor(name, stableOrder.categories, t);
 
-  const go = v => { setView(v); setSelCust(null); setSelRobot(null); setSelAgent(null); setSideOpen(false); };
+  const go = v => {
+    setView(v); setSelCust(null); setSelRobot(null); setSelAgent(null);
+    setSideOpen(false); setDrill(null);
+  };
+  const openDrill = payload => setDrill(payload);
   const openCustomer = name => { setSelCust(name); setSelRobot(null); setView("customers"); };
   const openRobot = id => { setSelRobot(id); setSelCust(d.rmap[id]?.customer || null); setView("customers"); };
 
@@ -93,7 +101,11 @@ function Dashboard() {
     );
   }
 
-  const badges = { unsolved: d.unsolved.length, anomalies: d.anomalies.length };
+  const badges = {
+    unsolved: d.unsolved.length,
+    anomalies: d.anomalies.length,
+    faults: d.faults.signatures.length,
+  };
   const subtitle = selRobot ? `Robot ${selRobot}` : selCust || selAgent || `${fmtDate(from)} – ${fmtDate(to)}`;
 
   return (
@@ -170,7 +182,11 @@ function Dashboard() {
 
           {view === "overview" && (
             <Overview d={d} meta={data?.meta} isAllTime={isAllTime}
-              colorForCategory={colorForCategory} onNavCustomer={openCustomer} />
+              colorForCategory={colorForCategory} onNavCustomer={openCustomer}
+              onNavRobot={openRobot} onNavFaults={() => go("faults")} onDrill={openDrill} />
+          )}
+          {view === "faults" && (
+            <Faults d={d} onOpenRobot={openRobot} onDrill={openDrill} />
           )}
           {view === "trends" && <Trends d={d} colorForAgent={colorForAgent} />}
           {view === "agents" && !selAgent && (
@@ -182,24 +198,27 @@ function Dashboard() {
           )}
           {view === "unsolved" && (
             <Unsolved d={d} colorForCategory={colorForCategory}
-              onNavCustomer={openCustomer} onNavRobot={openRobot} />
+              onNavCustomer={openCustomer} onDrill={openDrill} />
           )}
           {view === "customers" && !selCust && (
             <CustomerList d={d} colorForCategory={colorForCategory} onSelect={setSelCust} />
           )}
           {view === "customers" && selCust && !selRobot && (
             <CustomerDetail name={selCust} d={d} colorForCategory={colorForCategory}
-              onRobot={setSelRobot} onBack={() => setSelCust(null)} />
+              onRobot={setSelRobot} onBack={() => setSelCust(null)} onDrill={openDrill} />
           )}
           {view === "customers" && selRobot && (
             <RobotDetail robotId={selRobot} d={d} colorForCategory={colorForCategory}
-              onBack={() => setSelRobot(null)} />
+              onBack={() => setSelRobot(null)} onDrill={openDrill} />
           )}
           {view === "anomalies" && (
             <Anomalies d={d} colorForCategory={colorForCategory} onOpenRobot={openRobot} />
           )}
         </main>
       </div>
+
+      <TicketDrawer open={!!drill} title={drill?.title} sub={drill?.sub} rows={drill?.rows}
+        colorFor={colorForCategory} onClose={() => setDrill(null)} />
     </div>
   );
 }

@@ -96,18 +96,18 @@ body {
 }
 .topbar__spacer { flex: 1; }
 
-.content { flex: 1; padding: 20px 24px 40px; min-width: 0; }
-.stack { display: flex; flex-direction: column; gap: 16px; }
+.content { flex: 1; padding: 16px 20px 32px; min-width: 0; }
+.stack { display: flex; flex-direction: column; gap: 12px; }
 
 .scrim { position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 39; border: 0; }
 
 /* ─── Grid ─────────────────────────────────────────────────────────────── */
-.grid { display: grid; gap: 12px; }
+.grid { display: grid; gap: 10px; }
 .grid--top { align-items: start; }
 .grid--4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .grid--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .grid--2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.grid--wide { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 16px; }
+.grid--wide { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 12px; }
 .grid--cards { grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); }
 
 /* ─── Card ─────────────────────────────────────────────────────────────── */
@@ -121,19 +121,19 @@ body {
 }
 .card__head {
   display: flex; align-items: flex-start; gap: 12px;
-  padding: 14px 16px 12px;
+  padding: 11px 14px 10px;
 }
 .card__head--divided { border-bottom: 1px solid var(--border); }
 .card__title { font-size: 13.5px; font-weight: 650; margin: 0; letter-spacing: -.005em; }
 .card__sub { font-size: 12px; color: var(--text3); margin-top: 2px; }
 .card__actions { margin-left: auto; display: flex; align-items: center; gap: 6px; }
-.card__body { padding: 4px 16px 16px; }
+.card__body { padding: 4px 14px 12px; }
 .card__body--flush { padding: 0; }
 
 /* ─── Stat tile ────────────────────────────────────────────────────────── */
 .stat {
   background: var(--surface); border: 1px solid var(--border);
-  border-radius: 12px; padding: 14px 16px 15px;
+  border-radius: 12px; padding: 11px 14px 12px;
   box-shadow: var(--shadow1); position: relative;
   display: flex; flex-direction: column; gap: 2px;
   text-align: left; font: inherit; color: inherit;
@@ -146,7 +146,7 @@ button.stat:hover { box-shadow: var(--shadow2); transform: translateY(-1px); bor
   text-transform: uppercase; letter-spacing: .06em;
   display: flex; align-items: center; gap: 6px;
 }
-.stat__value { font-size: 27px; font-weight: 680; line-height: 1.15; letter-spacing: -.02em; }
+.stat__value { font-size: 25px; font-weight: 680; line-height: 1.15; letter-spacing: -.02em; }
 .stat--sm .stat__value { font-size: 21px; }
 .stat__sub { font-size: 12px; color: var(--text2); }
 .stat__rail {
@@ -247,23 +247,54 @@ button.stat:hover { box-shadow: var(--shadow2); transform: translateY(-1px); bor
 .table th {
   position: sticky; top: 0; z-index: 1;
   background: var(--surfaceAlt);
-  padding: 10px 14px; text-align: left; white-space: nowrap;
+  padding: 8px 12px; text-align: left; white-space: nowrap;
   font-size: 11.5px; font-weight: 600; color: var(--text3);
   text-transform: uppercase; letter-spacing: .06em;
   border-bottom: 1px solid var(--border);
 }
 .table th.num, .table td.num { text-align: right; font-variant-numeric: tabular-nums; }
-.table td { padding: 10px 14px; border-bottom: 1px solid var(--border); color: var(--text2); vertical-align: middle; }
+.table td { padding: 8px 12px; border-bottom: 1px solid var(--border); color: var(--text2); vertical-align: middle; }
 .table tbody tr:last-child td { border-bottom: none; }
 .table tbody tr { transition: background .1s; }
 .table tbody tr:hover { background: var(--surfaceSunken); }
 .table .cell--strong { color: var(--text); font-weight: 550; }
 .table .cell--clip { max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* The issue is the column people actually read — give it room over two lines
+   rather than cutting it off mid-sentence. */
+.table .cell--wrap { min-width: 240px; max-width: 520px; }
+.table .cell--wrap > span {
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden; white-space: normal; line-height: 1.45; max-height: 2.9em;
+}
+.table .cell--tight { max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.table tbody tr.is-open { background: var(--accentSoft); }
 
 .statusdot { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 550; white-space: nowrap; }
 .statusdot__dot { width: 7px; height: 7px; border-radius: 99px; flex-shrink: 0; }
 
 /* ─── Misc ─────────────────────────────────────────────────────────────── */
+/* ─── Drill-in drawer ─────────────────────────────────────────────────── */
+.scrim--drawer { z-index: 70; background: rgba(0,0,0,.38); }
+.drawer {
+  position: fixed; top: 0; right: 0; bottom: 0; z-index: 71;
+  width: min(940px, 92vw);
+  background: var(--surface); border-left: 1px solid var(--border);
+  box-shadow: var(--shadow2);
+  display: flex; flex-direction: column;
+}
+.drawer__head {
+  display: flex; align-items: flex-start; gap: 14px;
+  padding: 16px 20px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.drawer__title { font-size: 16px; font-weight: 650; margin: 0; letter-spacing: -.01em; }
+.drawer__sub { font-size: 12.5px; color: var(--text3); margin-top: 3px; }
+.drawer__body { flex: 1; overflow-y: auto; }
+.drawer__head .btn { margin-left: auto; }
+
+/* A figure that opens its own tickets */
+.drillable { cursor: pointer; }
+.drillable:hover .stat__value, .drillable:hover { color: var(--accentText); }
+
 /* ─── Anomalies ────────────────────────────────────────────────────────── */
 .anomalygrid {
   display: grid; grid-template-columns: minmax(290px, 34%) minmax(0, 1fr);

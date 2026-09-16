@@ -12,6 +12,7 @@
 // ============================================================================
 
 import { useState, useEffect } from "react";
+import { summariseFaults } from "./faults";
 
 const WEB_APP_URL = "/api/data";
 const REFRESH_MS = 5 * 60 * 1000;
@@ -264,6 +265,10 @@ export function derive(data, from, to, stableOrder) {
   return {
     rows, summary, daily, monthly, shifts, agents, categories,
     customers, robots, cmap, rmap, unsolved,
+    // The machine fault behind each alert — see faults.js. "Generic Error" is
+    // over half the tickets and says nothing on its own; this is what it
+    // actually contains.
+    faults: summariseFaults(rows),
     anomalies: buildAnomalies({ rows, robots, daily, unsolved }),
     stableOrder,
   };

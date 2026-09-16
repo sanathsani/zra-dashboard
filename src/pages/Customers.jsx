@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Card, Stat, RankRow, PageHead, TicketTable, Empty, RobotId, Tag } from "../components";
+import FaultBreakdown from "../FaultBreakdown";
 import { SplitBar, SplitLegend, VolumeTrend } from "../charts";
 import { useTheme } from "../theme";
 import { pct } from "../data";
@@ -46,7 +47,7 @@ export function CustomerList({ d, colorForCategory, onSelect }) {
   );
 }
 
-export function CustomerDetail({ name, d, colorForCategory, onRobot, onBack }) {
+export function CustomerDetail({ name, d, colorForCategory, onRobot, onBack, onDrill }) {
   const t = useTheme();
   const c = d.cmap[name];
   if (!c) return <Empty icon="—" title={`${name} has no tickets in this range`} body="Widen the date range." />;
@@ -68,10 +69,17 @@ export function CustomerDetail({ name, d, colorForCategory, onRobot, onBack }) {
         sub={`${c.total} tickets · ${c.robotCount} tracked robots · ${pct(c.resolved, c.total)}% resolved`} />
 
       <div className="grid grid--4">
-        <Stat label="Total" value={c.total} accent={t.series[0]} small />
-        <Stat label="Resolved at L1" value={c.l1} accent={t.good} small sub={`${pct(c.l1, c.total)}% self-served`} />
-        <Stat label="Escalated to L3" value={c.l3} accent={t.series[1]} small sub={`${pct(c.l3, c.total)}% escalated`} />
-        <Stat label="Still open" value={c.open} small accent={c.open ? t.critical : t.text3} alert={c.open > 2} />
+        <Stat label="Total" value={c.total} accent={t.series[0]} small
+          onClick={() => onDrill({ title: name, sub: `${c.total} tickets`, rows: c.rows.slice().reverse() })} />
+        <Stat label="Resolved at L1" value={c.l1} accent={t.good} small sub={`${pct(c.l1, c.total)}% self-served`}
+          onClick={() => onDrill({ title: `${name} — L1`, sub: `${c.l1} tickets`,
+            rows: c.rows.filter(r => r.level === "L1").reverse() })} />
+        <Stat label="Escalated to L3" value={c.l3} accent={t.series[1]} small sub={`${pct(c.l3, c.total)}% escalated`}
+          onClick={() => onDrill({ title: `${name} — L3`, sub: `${c.l3} tickets`,
+            rows: c.rows.filter(r => r.level !== "L1").reverse() })} />
+        <Stat label="Still open" value={c.open} small accent={c.open ? t.critical : t.text3} alert={c.open > 2}
+          onClick={c.open ? () => onDrill({ title: `${name} — open`, sub: `${c.open} tickets`,
+            rows: c.rows.filter(r => !["solved", "closed"].includes((r.status || "").toLowerCase())).reverse() }) : undefined} />
       </div>
 
       <div className="grid grid--wide grid--top">
@@ -92,6 +100,9 @@ export function CustomerDetail({ name, d, colorForCategory, onRobot, onBack }) {
           ))}
         </div>
       </Card>
+
+      <FaultBreakdown rows={c.rows} onDrill={onDrill}
+        title="What goes wrong across their fleet" max={12} />
 
       {robots.length > 0 && (
         <Card title={`Tracked robots (${robots.length})`} sub="Select a robot for its full fault history" flush>
@@ -127,7 +138,7 @@ export function CustomerDetail({ name, d, colorForCategory, onRobot, onBack }) {
   );
 }
 
-export function RobotDetail({ robotId, d, colorForCategory, onBack }) {
+export function RobotDetail({ robotId, d, colorForCategory, onBack, onDrill }) {
   const t = useTheme();
   const rb = d.rmap[robotId];
   if (!rb) return <Empty icon="—" title={`Robot ${robotId} has no tickets in this range`} body="Widen the date range." />;
@@ -151,25 +162,33 @@ export function RobotDetail({ robotId, d, colorForCategory, onBack }) {
         )} />
 
       <div className="grid grid--4">
-        <Stat label="Total tickets" value={rb.total} accent={severity} small />
+        <Stat label="Total tickets" value={rb.total} accent={severity} small
+          onClick={() => onDrill({ title: `Robot ${robotId}`, sub: `${rb.total} tickets`,
+            rows: rows.slice().reverse() })} />
         <Stat label="Escalated to L3" value={l3} accent={t.series[1]} small sub={`${pct(l3, rb.total)}% escalated`} />
         <Stat label="Resolved" value={rb.resolved} accent={t.good} small sub={`${pct(rb.resolved, rb.total)}% resolved`} />
-        <Stat label="Still open" value={open} small accent={open ? t.critical : t.text3} alert={open > 0} />
+        <Stat label="Still open" value={open} small accent={open ? t.critical : t.text3} alert={open > 0}
+          onClick={open ? () => onDrill({ title: `Robot ${robotId} — open`, sub: `${open} tickets`,
+            rows: rows.filter(r => !["solved", "closed"].includes((r.status || "").toLowerCase())).reverse() }) : undefined} />
       </div>
 
       <div className="grid grid--wide grid--top">
         <Card title="Fault timeline" sub="When this robot generated tickets">
           <VolumeTrend data={daily} height={200} />
         </Card>
-        <Card title="Error pattern" sub={`${cats.length} distinct categories`}>
+        <Card title="Ticket categories" sub={`${cats.length} as filed in Zendesk`}>
           <div className="stack" style={{ gap: 2, marginTop: 4 }}>
             {cats.map(([type, count]) => (
               <RankRow key={type} label={type} color={colorForCategory(type)} value={count}
-                max={cats[0][1]} pct={pct(count, rb.total)} nameWidth={160} />
+                max={cats[0][1]} pct={pct(count, rb.total)} nameWidth={150} />
             ))}
           </div>
         </Card>
       </div>
+
+      <FaultBreakdown rows={rows} onDrill={onDrill}
+        title={`What actually went wrong on robot ${robotId}`}
+        max={20} />
 
       <Card title={`Ticket history (${rows.length})`} flush>
         <TicketTable rows={rows.slice().reverse()} maxH={480} colorFor={colorForCategory}

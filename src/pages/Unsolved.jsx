@@ -17,7 +17,7 @@ function ageDays(dt) {
   return Math.max(0, Math.round((b - a) / 86400000));
 }
 
-export default function Unsolved({ d, colorForCategory, onNavCustomer }) {
+export default function Unsolved({ d, colorForCategory, onNavCustomer, onDrill }) {
   const t = useTheme();
   const [filter, setFilter] = useState("all");
   const [q, setQ] = useState("");
@@ -75,11 +75,18 @@ export default function Unsolved({ d, colorForCategory, onNavCustomer }) {
   return (
     <div className="stack">
       <div className="grid grid--4">
-        <Stat label="Total unresolved" value={uns.length} accent={t.critical} alert={uns.length > 15} />
-        <Stat label="Pending" value={counts.pending} accent={t.warning} />
-        <Stat label="In progress" value={counts["in progress"]} accent={t.series[0]} />
+        <Stat label="Total unresolved" value={uns.length} accent={t.critical} alert={uns.length > 15}
+          onClick={() => onDrill({ title: "All unresolved", sub: `${uns.length} tickets`, rows: uns })} />
+        <Stat label="Pending" value={counts.pending} accent={t.warning}
+          onClick={() => onDrill({ title: "Pending", sub: `${counts.pending} tickets`,
+            rows: uns.filter(r => r.status === "pending") })} />
+        <Stat label="In progress" value={counts["in progress"]} accent={t.series[0]}
+          onClick={() => onDrill({ title: "In progress", sub: `${counts["in progress"]} tickets`,
+            rows: uns.filter(r => r.status === "in progress") })} />
         <Stat label="Open 7+ days" value={stale} accent={stale ? t.critical : t.text3}
-          sub={oldest ? `oldest ${oldest.age} days` : undefined} alert={stale > 0} />
+          sub={oldest ? `oldest ${oldest.age} days` : undefined} alert={stale > 0}
+          onClick={stale ? () => onDrill({ title: "Open 7+ days", sub: `${stale} tickets`,
+            rows: uns.filter(r => ageDays(r.dt) >= 7) }) : undefined} />
       </div>
 
       <div className="grid grid--2">
