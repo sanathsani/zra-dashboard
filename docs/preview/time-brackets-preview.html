@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Time brackets — layout preview</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;450;500;600;650;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  color-scheme:light;
+  --bg:#e9edf3; --bg2:#f3f6fa; --card:#fff; --card2:#f7f9fc;
+  --ink:#101829; --ink2:#46536b; --ink3:#78849a;
+  --line:#dbe2ec; --line2:#e9edf3; --track:#e4e9f1;
+  --fr:#1baf7a; --res:#3f4c60; --s1:#2a78d6;
+  --shadow-1:0 1px 2px rgba(16,24,41,.05),0 1px 3px rgba(16,24,41,.04);
+  --shadow-2:0 2px 4px rgba(16,24,41,.05),0 8px 20px rgba(16,24,41,.07);
+  --e-dec:cubic-bezier(.05,.7,.1,1);
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#090c12; --bg2:#10151d; --card:#141a23; --card2:#1a212c;
+  --ink:#eef2f8; --ink2:#a9b5c7; --ink3:#77839a;
+  --line:#2a3444; --line2:#202836; --track:#273141;
+  --fr:#22c08a; --res:#7d8ba3; --s1:#4a92ea;
+  --shadow-1:0 1px 2px rgba(0,0,0,.4); --shadow-2:0 2px 6px rgba(0,0,0,.45);
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
+  background:var(--bg);background-image:linear-gradient(180deg,var(--bg2),var(--bg) 46%);
+  background-attachment:fixed;color:var(--ink);font-size:13.5px;line-height:1.55;
+  -webkit-font-smoothing:antialiased;padding:34px 26px 70px}
+.wrap{max-width:1180px;margin:0 auto}
+h1{margin:0;font-size:20px;font-weight:650;letter-spacing:-.02em}
+.lede{margin:7px 0 0;color:var(--ink3);font-size:12.5px;max-width:74ch}
+.bar{display:flex;align-items:center;gap:10px;margin:22px 0 26px}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;font-size:12.5px;
+  background:var(--card);border:1px solid var(--line);border-radius:10px;color:var(--ink2);
+  box-shadow:var(--shadow-1);cursor:pointer;font-family:inherit}
+.btn:hover{color:var(--ink)}
+.btn--on{background:var(--s1);border-color:var(--s1);color:#fff}
+
+.sec{background:var(--card);border:1px solid var(--line);border-radius:14px;
+  box-shadow:var(--shadow-1);margin-bottom:18px;overflow:hidden}
+.sec__head{display:flex;align-items:center;gap:12px;padding:16px 20px 15px;border-bottom:1px solid var(--line2)}
+.sec__no{width:27px;height:27px;flex:none;border-radius:8px;display:grid;place-items:center;
+  background:var(--s1);color:#fff;font-size:11px;font-weight:700}
+.sec__title{font-size:15px;font-weight:650}
+.sec__sub{font-size:11.5px;color:var(--ink3);margin-top:2px}
+.sec__tag{margin-left:auto;font-size:11.5px;color:var(--ink3)}
+.sec__body{padding:20px}
+.two{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px}
+
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow-1);overflow:hidden}
+.card__head{padding:15px 17px 0}
+.card__title{font-size:13.5px;font-weight:650}
+.card__sub{font-size:11.5px;color:var(--ink3);margin-top:3px}
+.card__body{padding:16px 17px 18px}
+
+.brow{display:grid;grid-template-columns:86px 1fr;gap:12px;align-items:center;margin-bottom:11px}
+.brow:last-child{margin-bottom:0}
+.blab{font-size:12.5px;color:var(--ink2);text-align:right;white-space:nowrap}
+.btrack{position:relative;height:26px;border-radius:6px;background:var(--track);overflow:hidden}
+.bfill{position:absolute;inset:0 auto 0 0;border-radius:6px;display:flex;align-items:center;
+  justify-content:flex-end;padding-right:9px;color:#fff;font-size:12px;font-weight:700;
+  font-variant-numeric:tabular-nums;width:0;animation:grow .55s var(--e-dec) forwards}
+.bfill--out{justify-content:flex-start;padding:0}
+.bout{position:absolute;top:50%;transform:translateY(-50%);font-size:12px;font-weight:700;
+  color:var(--ink);font-variant-numeric:tabular-nums}
+@keyframes grow{to{width:var(--w)}}
+@media (prefers-reduced-motion:reduce){.bfill{animation:none;width:var(--w)}}
+
+.foot{font-size:11.5px;color:var(--ink3);margin-top:14px;line-height:1.7}
+.foot b{color:var(--ink2)}
+.pend{display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--ink3);
+  background:var(--card2);border:1px dashed var(--line);border-radius:9px;padding:9px 12px;margin-top:14px}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--fr);flex:none}
+.dot--res{background:var(--res)}
+.note{margin-top:16px;border:1px solid var(--line);border-left:3px solid var(--s1);
+  border-radius:10px;background:var(--card2);padding:12px 14px;font-size:12.5px;color:var(--ink2);line-height:1.75}
+.note b{color:var(--ink)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>First response &amp; restoration time — bracket layout</h1>
+  <p class="lede">Two cards side by side, bars sorted smallest at the top, value inside the bar,
+    empty brackets dropped — the way Explore draws them. This is the one section, not the whole page.</p>
+
+  <div class="bar">
+    <button class="btn btn--on" id="p1">24 Aug – 6 Sep 2026</button>
+    <button class="btn" id="p2">Full period · 12 Jun – 20 Sep</button>
+    <button class="btn" id="th" style="margin-left:auto">☾ Dark</button>
+  </div>
+
+  <section class="sec">
+    <div class="sec__head">
+      <span class="sec__no">09</span>
+      <div><div class="sec__title">First response and resolution time distribution</div>
+        <div class="sec__sub" id="sub">24 Aug 2026 – 6 Sep 2026</div></div>
+      <span class="sec__tag" id="tag">327 solved</span>
+    </div>
+    <div class="sec__body">
+      <div class="two">
+        <div class="card">
+          <div class="card__head"><div class="card__title">First Response Time by Time Bracket</div>
+            <div class="card__sub" id="frsub">Agent's first reply · business minutes</div></div>
+          <div class="card__body"><div id="fr"></div>
+            <div class="pend"><span class="dot"></span><span id="frnote"></span></div></div>
+        </div>
+        <div class="card">
+          <div class="card__head"><div class="card__title">Target Restoration Time by Time Bracket</div>
+            <div class="card__sub">Created to solved</div></div>
+          <div class="card__body"><div id="res"></div>
+            <div class="pend"><span class="dot dot--res"></span><span id="resnote"></span></div></div>
+        </div>
+      </div>
+      <div class="note">
+        <b>Why the restoration numbers will shift.</b> Right now this card measures created → solved
+        from the sheet. Explore measures the SLA clock, which pauses while a ticket is pending — for
+        24 Aug – 6 Sep it read 302 / 16 / 1 against the 291 / 23 / 6 below. Once the sync stores
+        Zendesk's own <b>requester wait time</b>, the two agree exactly.
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+/* Explore's own bracket edges; empty brackets are dropped, smallest bar first. */
+const DATA = {
+  p1: {
+    label: '24 Aug 2026 – 6 Sep 2026', solved: 327,
+    fr:  { source: 'explore', rows: [['No replies', 265], ['0 - 1 hrs', 53], ['1 - 8 hrs', 1]] },
+    res: { rows: [['0 - 1 hrs', 291], ['1 - 24 hrs', 23], ['1 - 3 days', 6], ['3 - 5 days', 1], ['> 5 days', 6]] },
+  },
+  p2: {
+    label: '12 Jun 2026 – 20 Sep 2026', solved: 1475,
+    fr:  { source: 'pending', rows: [] },
+    res: { rows: [['0 - 1 hrs', 1251], ['1 - 24 hrs', 109], ['1 - 3 days', 20], ['3 - 5 days', 10], ['> 5 days', 85]] },
+  },
+};
+
+function draw(host, rows, colour) {
+  host.innerHTML = '';
+  const live = rows.filter(r => r[1] > 0).sort((a, b) => a[1] - b[1]);
+  if (!live.length) {
+    host.innerHTML = '<div style="padding:26px 0;text-align:center;color:var(--ink3);font-size:12.5px">' +
+      'No bracket data yet for this period.</div>';
+    return;
+  }
+  const max = Math.max(...live.map(r => r[1]));
+  live.forEach(([label, v], i) => {
+    const pct = (v / max) * 100;
+    const inside = pct > 14;
+    const row = document.createElement('div');
+    row.className = 'brow';
+    row.innerHTML =
+      `<span class="blab">${label}</span>
+       <span class="btrack">
+         <i class="bfill ${inside ? '' : 'bfill--out'}"
+            style="--w:${pct}%;background:${colour};animation-delay:${i * 60}ms">${inside ? v.toLocaleString() : ''}</i>
+         ${inside ? '' : `<b class="bout" style="left:calc(${pct}% + 9px)">${v.toLocaleString()}</b>`}
+       </span>`;
+    host.appendChild(row);
+  });
+}
+
+function render(key) {
+  const d = DATA[key];
+  document.getElementById('sub').textContent = d.label;
+  document.getElementById('tag').textContent = d.solved.toLocaleString() + ' solved';
+  draw(document.getElementById('fr'), d.fr.rows, 'var(--fr)');
+  draw(document.getElementById('res'), d.res.rows, 'var(--res)');
+  document.getElementById('frnote').innerHTML = d.fr.source === 'explore'
+    ? 'Numbers read from your own Explore view for this window — the layout is live, the column that feeds it arrives with the sync patch.'
+    : 'Waiting on the <b>First Response (min)</b> column. Your backend already fetches it; it just is not written to the sheet yet.';
+  document.getElementById('resnote').innerHTML =
+    'Computed live from the tracker sheet — created date to solved date.';
+  document.getElementById('p1').classList.toggle('btn--on', key === 'p1');
+  document.getElementById('p2').classList.toggle('btn--on', key === 'p2');
+}
+
+document.getElementById('p1').onclick = () => render('p1');
+document.getElementById('p2').onclick = () => render('p2');
+document.getElementById('th').onclick = e => {
+  const dark = document.documentElement.dataset.theme === 'dark';
+  document.documentElement.dataset.theme = dark ? 'light' : 'dark';
+  e.currentTarget.textContent = dark ? '☾ Dark' : '☀ Light';
+};
+render('p1');
+</script>
+</body>
+</html>
