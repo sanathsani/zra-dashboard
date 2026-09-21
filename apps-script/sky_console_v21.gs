@@ -309,6 +309,22 @@ function getConfig(ss) {
 }
 
 /**
+ * A tab fed by IMPORTRANGE is not writable: A1 holds the formula and the rest
+ * of the grid is its spill. setValues() there either throws or wipes the
+ * formula and takes every COUNTIFS and SUMPRODUCT reading that tab down with
+ * it. Refuse loudly instead, and say what to do about it.
+ */
+function assertWritable(sheet) {
+  var f = String(sheet.getRange(1, 1).getFormula() || '');
+  if (f.toUpperCase().indexOf('IMPORTRANGE') === -1) return;
+  throw new Error(
+    '"' + sheet.getName() + '" is still fed by IMPORTRANGE, so the sync cannot write to it.\n' +
+    'Before running this on the tracker: select the tab, Ctrl+A, Ctrl+C, then ' +
+    'Edit > Paste special > Values only. That freezes the current grid and ' +
+    'removes the formula. Do it for "' + TICKETS_SHEET + '" and "' + RCA_SHEET + '".');
+}
+
+/**
  * 21.0.0 — the tracker grew two columns. Written once, styled to match the
  * headers already on the row, so nobody has to add them by hand.
  */
@@ -377,7 +393,7 @@ function ticketSync(apply) {
   lock.waitLock(30000);
   try {
     var ss = activeSS(), sheet = ticketsSheet(ss);
-    if (apply) ensureMetricColumns(sheet);
+    if (apply) { assertWritable(sheet); ensureMetricColumns(sheet); }
     var n = Math.max(0, sheet.getLastRow() - HEADER_ROWS);
     var grid = n ? sheet.getRange(HEADER_ROWS + 1, 1, n, LAST_COL).getValues() : [];
 
@@ -921,6 +937,7 @@ function keptRca(ss) {
 /** Rebuilds the sheet in your tracker's layout and colours. */
 function writeRca(ss, rows) {
   var sh = ss.getSheetByName(RCA_SHEET) || ss.insertSheet(RCA_SHEET);
+  assertWritable(sh);
   var w = RCA_HEADERS.length;
   sh.clear();
   try { sh.getRange(1, 1, 1, w).breakApart(); } catch (err) { /* nothing merged yet */ }
