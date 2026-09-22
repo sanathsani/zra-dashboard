@@ -10,21 +10,51 @@
    The drawn renderers are still below, and still used if a browser cannot
    produce the images — better a plainer deck than a dead button.
    ========================================================================= */
-const CDN = {
-  pptx: 'https://cdnjs.cloudflare.com/ajax/libs/pptxgenjs/3.12.0/pptxgen.bundle.js',
-  jspdf: 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
-  shot: 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js',
+/* The three generators are served from this site. They used to come from
+   cdnjs, and on a managed network that request can come back as an empty 200:
+   the script tag fires "load", nothing is defined, and the export quietly
+   falls back to the drawn deck — which is exactly what "PptxGenJS is not
+   defined" was. A CDN copy is still tried if a local file ever goes missing. */
+const LIB = {
+  shot: { global: 'html2canvas', src: '/app/vendor/html2canvas.min.js',
+          alt: 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js' },
+  pptx: { global: 'PptxGenJS', src: '/app/vendor/pptxgen.bundle.js',
+          alt: 'https://cdnjs.cloudflare.com/ajax/libs/pptxgenjs/3.12.0/pptxgen.bundle.js' },
+  pdf:  { global: 'jspdf', src: '/app/vendor/jspdf.umd.min.js',
+          alt: 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js' },
 };
 
 /* 16:9 at a size that still reads when it is projected. */
 const SLIDE = { w: 1600, h: 900, scale: 2 };
-function loadScript(src) {
+function fetchScript(src) {
   return new Promise((ok, no) => {
-    if ([...document.scripts].some(s => s.src === src)) return ok();
-    const s = document.createElement('script');
-    s.src = src; s.onload = ok; s.onerror = () => no(new Error('offline'));
-    document.head.appendChild(s);
+    const el = document.createElement('script');
+    el.src = src;
+    el.onload = () => ok();
+    el.onerror = () => no(new Error('could not fetch ' + src));
+    document.head.appendChild(el);
   });
+}
+
+/* Loaded once, awaited properly, and only counted as loaded when the library
+   is actually there. The old version resolved the moment a script tag with
+   that src existed, so a second click on Download resolved before the first
+   script had finished running, and then used a global that did not exist. */
+const LOADED = {};
+function loadLib(key) {
+  const spec = LIB[key];
+  if (LOADED[key]) return LOADED[key];
+  const job = (async () => {
+    for (const src of [spec.src, spec.alt]) {
+      try {
+        await fetchScript(src);
+        if (window[spec.global]) return;
+      } catch { /* try the next source */ }
+    }
+    throw new Error(spec.global + ' could not be loaded');
+  })();
+  LOADED[key] = job.catch(err => { delete LOADED[key]; throw err; });   // let a retry work
+  return LOADED[key];
 }
 
 const EX = {
@@ -205,7 +235,7 @@ function deckModel() {
 
 /* ── PowerPoint ──────────────────────────────────────────────────────── */
 async function toPptx(slides, name) {
-  await loadScript(CDN.pptx);
+  await loadLib('pptx');
   const p = new PptxGenJS();
   p.layout = 'LAYOUT_16x9';               // 10 × 5.625 in
   p.author = 'Awign Enterprises';
@@ -310,7 +340,7 @@ async function toPptx(slides, name) {
 
 /* ── PDF ─────────────────────────────────────────────────────────────── */
 async function toPdf(slides, name) {
-  await loadScript(CDN.jspdf);
+  await loadLib('pdf');
   const { jsPDF } = window.jspdf;
   const W = 960, H = 540, M = 52;
   const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: [W, H] });
@@ -482,7 +512,7 @@ async function toPdf(slides, name) {
    markup and the same stylesheet presentation mode uses. Anything too tall
    for a slide is scaled to fit rather than cropped. */
 async function captureSlides(step) {
-  await loadScript(CDN.shot);
+  await loadLib('shot');
   const secs = reviewSections();
   const bg = getComputedStyle(document.body).backgroundColor || '#0d1117';
 
@@ -552,7 +582,7 @@ async function shoot(stage, bg) {
 }
 
 async function shotsToPptx(shots, name) {
-  await loadScript(CDN.pptx);
+  await loadLib('pptx');
   const p = new PptxGenJS();
   p.layout = 'LAYOUT_16x9';                       // 10in x 5.625in
   shots.forEach(data => p.addSlide().addImage({ data, x: 0, y: 0, w: 10, h: 5.625 }));
@@ -560,7 +590,7 @@ async function shotsToPptx(shots, name) {
 }
 
 async function shotsToPdf(shots, name) {
-  await loadScript(CDN.jspdf);
+  await loadLib('pdf');
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ orientation: 'landscape', unit: 'px',
                           format: [SLIDE.w, SLIDE.h], compress: true });
@@ -587,8 +617,7 @@ async function exportDeck(kind) {
       if (kind === 'pptx') await toPptx(model, name); else await toPdf(model, name);
       toast('The page could not be rendered, so the drawn deck was built instead.');
     } catch (e2) {
-      toast('Export needs the internet to pull the generator library. ' +
-            ((e2 && e2.message) || (err && err.message) || ''));
+      toast('Export could not start: ' + ((e2 && e2.message) || (err && err.message) || 'unknown'));
     }
   }
 }
