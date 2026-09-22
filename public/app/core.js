@@ -103,26 +103,31 @@ const SLA_BY_ID = FEED.sla.reduce((a, r) => (a[r.id] = r, a), {});
 const HIDDEN_CUSTOMERS = new Set(['other', 'others', 'unknown', 'n/a', 'na', '-', '', 'skild']);
 const isHiddenCustomer = name => HIDDEN_CUSTOMERS.has(String(name || '').trim().toLowerCase());
 
+/* Explore's ageing brackets, which stop at > 5 days. Only the wording is
+   touched here, so the two bracket charts beside it read the same way. */
 const AGE_BUCKETS = [
-  { label: '< 1 day',  lo: 0,  hi: 1 },
-  { label: '1 – 3 days', lo: 1, hi: 3 },
-  { label: '3 – 5 days', lo: 3, hi: 5 },
-  { label: '> 5 days', lo: 5,  hi: 1e9 },
+  { label: '<1 day',   lo: 0, hi: 1 },
+  { label: '1-3 days', lo: 1, hi: 3 },
+  { label: '3-5 days', lo: 3, hi: 5 },
+  { label: '>5 days',  lo: 5, hi: 1e9 },
 ];
-/* Explore's own bracket edges, in hours. */
+/* Explore's own bracket edges and Explore's own wording, in hours. These had
+   drifted: restoration was cut at 3-5 days and > 5 days where Explore cuts at
+   3-7 and > 7, and first reply carried 1-3 days and > 3 days where Explore
+   stops at > 24 hrs. Same tickets, different shelves, so the two screens
+   disagreed on shape while agreeing on totals. */
 const RES_BUCKETS = [
-  { label: '0 - 1 hrs',  lo: 0,   hi: 1 },
-  { label: '1 - 24 hrs', lo: 1,   hi: 24 },
-  { label: '1 - 3 days', lo: 24,  hi: 72 },
-  { label: '3 - 5 days', lo: 72,  hi: 120 },
-  { label: '> 5 days',   lo: 120, hi: 1e9 },
+  { label: '0-1 hrs',  lo: 0,   hi: 1 },
+  { label: '1-24 hrs', lo: 1,   hi: 24 },
+  { label: '1-3 days', lo: 24,  hi: 72 },
+  { label: '3-7 days', lo: 72,  hi: 168 },
+  { label: '>7 days',  lo: 168, hi: 1e9 },
 ];
 const FR_BUCKETS = [
-  { label: '0 - 1 hrs',  lo: 0,   hi: 1 },
-  { label: '1 - 8 hrs',  lo: 1,   hi: 8 },
-  { label: '8 - 24 hrs', lo: 8,   hi: 24 },
-  { label: '1 - 3 days', lo: 24,  hi: 72 },
-  { label: '> 3 days',   lo: 72,  hi: 1e9 },
+  { label: '0-1 hrs',  lo: 0,  hi: 1 },
+  { label: '1-8 hrs',  lo: 1,  hi: 8 },
+  { label: '8-24 hrs', lo: 8,  hi: 24 },
+  { label: '>24 hrs',  lo: 24, hi: 1e9 },
 ];
 /* The feed carries these two only once the tracker sheet has the columns. */
 const HAS_RESPONSE = FEED.cols.indexOf('response') >= 0;
