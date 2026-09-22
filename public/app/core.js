@@ -86,6 +86,12 @@ const STABLE = (() => {
   return { owners: tally(C.owner), cats: tally(C.cat), customers: tally(C.cust) };
 })();
 
+/* Requester-wait minutes by ticket. Explore's restoration brackets read this
+   clock, not created → solved: it stops while a ticket is Pending, so it is
+   the shorter of the two and lands tickets a bucket lower. */
+const WAIT_BY_ID = (FEED.clocks || []).reduce(
+  (a, c) => (c.waitMin != null ? ((a[c.id] = c.waitMin), a) : a), {});
+
 /* SLA breach rows keyed by ticket id — the sheet holds breaches only.
    Which metric breached inside a given window comes from FEED.clocks, in
    derive(); the sheet's own breach label covers the ticket's whole life. */
@@ -168,19 +174,28 @@ function derive(from, to) {
       const bi = AGE_BUCKETS.findIndex(b => age >= b.lo && age < b.hi);
       if (bi >= 0) { ageCount[bi].all++; isL3 ? ageCount[bi].l3++ : ageCount[bi].l1++; }
     }
-    /* Restoration: Zendesk's own clock when the sheet holds it, otherwise
-       created → solved, which runs longer because it never pauses. */
+    /* Restoration: the requester-wait clock, which is what Explore's
+       "Tickets by requester wait time brackets" counts. It pauses while a
+       ticket is Pending, so it runs shorter than column M (created → solved
+       on the calendar) — that difference put eight tickets in 1 - 24 hrs here
+       against three in Explore. Column M is still the sheet's own number.
+       Solved tickets only, which is Explore's metric: Solved tickets. */
     if (!open) {
       let h = null;
-      if (HAS_RESTORE && t[C.restore] !== '' && t[C.restore] != null) h = Number(t[C.restore]) / 60;
+      const wait = WAIT_BY_ID[t[C.id]];
+      if (wait != null) h = wait / 60;
+      else if (HAS_RESTORE && t[C.restore] !== '' && t[C.restore] != null) h = Number(t[C.restore]) / 60;
       else if (t[C.solved]) h = hoursBetween(t[C.created], t[C.solved]);
       if (h != null && h >= 0) {
         const bi = RES_BUCKETS.findIndex(b => h >= b.lo && h < b.hi);
         if (bi >= 0) resCount[bi]++;
       }
     }
-    /* First response: only Zendesk knows it. Blank means nobody ever replied. */
-    if (HAS_RESPONSE) {
+    /* First response, on SOLVED tickets only. Explore's chart counts solved
+       tickets: it read 30 replied and 246 without where this read 40 and 249,
+       and the difference was exactly the fourteen still open. Blank means
+       nobody ever replied. */
+    if (HAS_RESPONSE && !open) {
       const v = t[C.response];
       if (v === '' || v == null) frNone++;
       else {

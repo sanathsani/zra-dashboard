@@ -603,6 +603,7 @@ function zdTickets() {
       l3owner:   fieldLabel(zdField(t, fields.ids.l3owner), fields.options),
       reply:      bizMin(m.reply_time_in_minutes),            // -> column L, business
       wait:       bizMin(m.requester_wait_time_in_minutes),   // SLA verdict only
+      waitCal:    calMin(m.requester_wait_time_in_minutes),   // -> the dashboard's restoration brackets
       resolution: resolved ? resolutionMins(t, m) : null      // -> column M, calendar
     };
     count++;
@@ -772,7 +773,8 @@ function warmFeed() {
 // This tab answers both, in five columns nobody has to read by hand.
 
 var CLOCK_HEADERS = ['Ticket ID', 'First Response SLA', 'Response Finished',
-                     'Resolution SLA', 'Resolution Finished'];
+                     'Resolution SLA', 'Resolution Finished',
+                     'First Reply (min)', 'Requester Wait (min)'];
 
 /** Completed clocks only — Explore's "SLA metric status = Completed". */
 function clockRows(state, byId) {
@@ -781,9 +783,16 @@ function clockRows(state, byId) {
     if (!byId[key]) return;                         // deleted in Zendesk
     var a = finishedClock(state[key].response), b = finishedClock(state[key].resolution);
     if (!a && !b) return;                           // nothing has finished yet
+    // The two clocks in minutes. Requester wait is the CALENDAR figure, which
+    // is what Explore's "Tickets by requester wait time brackets" reads: it
+    // stops while a ticket is Pending, so it is shorter than created->solved.
+    var z = byId[key];
+    var reply = z.reply != null ? z.reply : (a && a.mins !== '' ? a.mins : '');
+    var wait  = z.waitCal != null ? z.waitCal : (b && b.mins !== '' ? b.mins : '');
     out.push(['#' + key,
               a ? a.status : '', a && a.at ? new Date(a.at) : '',
-              b ? b.status : '', b && b.at ? new Date(b.at) : '']);
+              b ? b.status : '', b && b.at ? new Date(b.at) : '',
+              reply === null ? '' : reply, wait === null ? '' : wait]);
   });
   return out;
 }
@@ -802,6 +811,7 @@ function writeClocks(ss, rows) {
     sh.getRange(2, 1, rows.length, w).setValues(rows);
     sh.getRange(2, 3, rows.length, 1).setNumberFormat(NUM_FMT);
     sh.getRange(2, 5, rows.length, 1).setNumberFormat(NUM_FMT);
+    sh.getRange(2, 6, rows.length, 2).setNumberFormat('0');
   }
   sh.setFrozenRows(1);
   try { sh.hideSheet(); } catch (err) { /* already hidden, or the only sheet */ }
@@ -828,9 +838,14 @@ function feedClocks() {
     var id = normKey(grid[i][0]);
     if (!id) continue;
     out.push([id, clockCode(grid[i][1]), slaStamp(grid[i][2]),
-                  clockCode(grid[i][3]), slaStamp(grid[i][4])]);
+                  clockCode(grid[i][3]), slaStamp(grid[i][4]),
+                  clockMins(grid[i][5]), clockMins(grid[i][6])]);
   }
   return out;
+}
+
+function clockMins(v) {
+  return v === '' || v == null || isNaN(Number(v)) ? null : Number(v);
 }
 
 function clockCode(v) {

@@ -562,16 +562,16 @@ function reviewSections() {
     sub: 'Time brackets · Zendesk clocks', tag: `${num(s.solved)} solved`,
     ph: 'Speed story: how fast the team is replying and closing, and any outliers worth naming.',
     html: `<div style="${cols(340)}">
-      ${card('First Response Time by Time Bracket', "Agent's first reply · business minutes",
+      ${card('First Response Time by Time Bracket', "Agent's first reply · solved tickets",
         '<div class="js-fr"></div>' + (D.brackets.hasResponse
           ? `<div class="srcnote"><i style="background:var(--s3)"></i>
-             <span>From Zendesk's first-reply clock. A ticket nobody replied to lands in
-             <b>No replies</b>.</span></div>`
+             <span>From Zendesk's first-reply clock, over solved tickets — the same count
+             Explore makes. A ticket nobody replied to lands in <b>No replies</b>.</span></div>`
           : `<div class="srcnote"><i style="background:var(--warn)"></i>
              <span>Waiting on the <b>First Response (min)</b> column. The sync already downloads it —
              it just is not written to the tracker sheet yet.</span></div>`))}
       ${card('Target Restoration Time by Time Bracket',
-        D.brackets.restoreFromZendesk ? 'Zendesk restoration clock' : 'Created to solved',
+        D.brackets.restoreFromZendesk ? 'Requester wait clock · solved tickets' : 'Created to solved',
         '<div class="js-restore"></div>' +
         `<div class="srcnote"><i style="background:${D.brackets.restoreFromZendesk ? 'var(--s3)' : 'var(--warn)'}"></i>
          <span>${D.brackets.restoreFromZendesk

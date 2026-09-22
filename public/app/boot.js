@@ -101,6 +101,8 @@ function toFeed(d) {
     id: bare(c[0]),
     fr: c[1] || '', frAt: c[2] || '',
     res: c[3] || '', resAt: c[4] || '',
+    replyMin: c[5] == null ? null : Number(c[5]),
+    waitMin:  c[6] == null ? null : Number(c[6]),
   }));
 
   const agents = (d.roster || []).map(a => ({

@@ -160,7 +160,7 @@ function deckModel() {
   });
 
   slides.push({
-    title: 'Target restoration time by time bracket', sub: `${num(s.solved)} solved tickets · created to solved`,
+    title: 'Target restoration time by time bracket', sub: `${num(s.solved)} solved tickets · requester wait clock`,
     bars: { labels: D.resTime.map(b => b.label), values: D.resTime.map(b => b.count), horizontal: true, ordinal: true },
     note: n('s9'),
   });
