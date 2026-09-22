@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Card, Stat, Metric, RankRow } from "../components";
+import { Card, Metric, RankRow } from "../components";
 import { VolumeTrend, ResolutionBars, SplitBar, SplitLegend, LevelSplitBars } from "../charts";
 import { useTheme } from "../theme";
 import { FAMILIES } from "../faults";
@@ -21,6 +21,20 @@ export default function Overview({
 
   const mtdKey = today.slice(0, 7);
   const mtd = d.monthly.find(m => m.key === mtdKey);
+
+  /* Solved by level, and how the open ones split. The summary carries the
+     totals and the unresolved counts, so the rest is arithmetic. */
+  const l1Solved = s.l1 - s.l1Unresolved;
+  const l3Solved = s.l3 - s.l3Unresolved;
+  const open1 = useMemo(() => {
+    const o = { l1Pending: 0, l1Progress: 0, l3Pending: 0, l3Progress: 0 };
+    d.unsolved.forEach(r => {
+      const pend = (r.status || "").toLowerCase() === "pending";
+      if (r.level === "L1") pend ? o.l1Pending++ : o.l1Progress++;
+      else pend ? o.l3Pending++ : o.l3Progress++;
+    });
+    return o;
+  }, [d.unsolved]);
 
   // ── What needs attention ────────────────────────────────────────────────
   const ageOf = r => Math.max(0, Math.round(
@@ -60,14 +74,53 @@ export default function Overview({
   return (
     <div className="stack">
 
-      {/* ── Needs attention, before any totals ── */}
-      <div className="kpihead"><h3>Needs attention</h3><span>{rangeLabel}</span></div>
+      {/* ── The ticket matrix, the way the review opens ──────────────────
+         Volume first, then what is still open, then the month. The headline
+         number of a support period is how many tickets came in and how many
+         went out; "unresolved" is the exception to that, and an exception
+         belongs under the rule, not above it. */}
+      <div className="kpihead"><h3>Ticket metrics</h3><span>{rangeLabel}</span></div>
       <div className="grid grid--4">
-        <Metric label="Unresolved tickets" value={s.unresolved}
-          alert={s.unresolved > 15} sub={`${s.pending} pending · ${s.inProgress} in progress`}
-          onClick={() => onDrill({ title: "Unresolved tickets", sub: rangeLabel, rows: d.unsolved })} />
-        <Metric label="Open 7+ days" value={stale.length}
-          alert={stale.length > 0}
+        <Metric label="Created tickets" value={s.total.toLocaleString()} sub={rangeLabel} />
+        <Metric label="Solved tickets" value={s.resolved.toLocaleString()}
+          sub={`${pct(s.resolved, s.total)}% of created`} />
+        <Metric label="Solved Tickets - L1" value={l1Solved.toLocaleString()}
+          sub={`${pct(l1Solved, s.total)}% of created`} />
+        <Metric label="Solved Tickets - L3" value={l3Solved.toLocaleString()}
+          sub={`${pct(l3Solved, s.total)}% of created`} />
+      </div>
+      <div className="grid grid--4">
+        <Metric label="Unsolved tickets" value={s.unresolved} alert={s.unresolved > 15}
+          sub={`${s.pending} pending · ${s.inProgress} in progress`}
+          onClick={() => onDrill({ title: "Unsolved tickets", sub: rangeLabel, rows: d.unsolved })} />
+        <Metric label="Unsolved Tickets - L1" value={s.l1Unresolved}
+          sub={`${open1.l1Pending} pending · ${open1.l1Progress} in progress`}
+          onClick={s.l1Unresolved ? () => onDrill({
+            title: "Unsolved tickets - L1", sub: rangeLabel,
+            rows: d.unsolved.filter(r => r.level === "L1"),
+          }) : undefined} />
+        <Metric label="Unsolved Tickets - L3" value={s.l3Unresolved}
+          sub={`${open1.l3Pending} pending · ${open1.l3Progress} in progress`}
+          onClick={s.l3Unresolved ? () => onDrill({
+            title: "Unsolved tickets - L3", sub: rangeLabel,
+            rows: d.unsolved.filter(r => r.level !== "L1"),
+          }) : undefined} />
+        <Metric label="Resolution rate" value={`${s.rate}%`} sub="solved ÷ created" />
+      </div>
+
+      {/* ── How the period is running ── */}
+      <div className="kpihead"><h3>Recent activity</h3><span>{fmtMonth(mtdKey, true)}</span></div>
+      <div className="grid grid--3">
+        <Metric label={<>Today<span className="livedot" /></>}
+          value={todayRow.total} sub={fmtDate(today)} />
+        <Metric label="Yesterday" value={ydayRow.total} sub={fmtDate(addDays(today, -1))} />
+        <Metric label="Month to date" value={mtd?.total ?? 0} sub={fmtMonth(mtdKey, true)} />
+      </div>
+
+      {/* ── What needs a person ── */}
+      <div className="kpihead"><h3>Needs attention</h3><span>{rangeLabel}</span></div>
+      <div className="grid grid--3">
+        <Metric label="Open 7+ days" value={stale.length} alert={stale.length > 0}
           sub={stale.length ? `oldest ${Math.max(...stale.map(ageOf))} days` : "nothing ageing"}
           onClick={stale.length ? () => onDrill({
             title: "Open longer than 7 days", sub: `${stale.length} tickets`, rows: stale,
@@ -82,30 +135,6 @@ export default function Overview({
             sub: `${FAMILIES[topFault.family]} · ${topFault.robotCount} robots`,
             rows: topFault.rows.slice().reverse(),
           }) : undefined} />
-      </div>
-
-      {/* ── Volume ──────────────────────────────────────────────────────────
-         Every number on this page used to be its own size: 25px in the row
-         above, 23px here, 19px underneath, and the bottom two rows were bare
-         divs rather than tiles. Three type scales and two card treatments for
-         one page of figures. It is one tile and one scale now, with the second
-         row a deliberate step down because it is cadence, not volume. */}
-      <div className="kpihead"><h3>Volume</h3><span>{rangeLabel}</span></div>
-      <div className="grid grid--4">
-        {[
-          ["Created tickets", s.total.toLocaleString(), rangeLabel],
-          ["Solved tickets", s.resolved.toLocaleString(), `${s.rate}% of created`],
-          ["Handled at L1", s.l1.toLocaleString(), `${pct(s.l1, s.total)}% self-served`],
-          ["Escalated to L3", s.l3.toLocaleString(), `${pct(s.l3, s.total)}% escalated`],
-        ].map(([label, value, sub]) => (
-          <Metric key={label} label={label} value={value} sub={sub} />
-        ))}
-      </div>
-      <div className="grid grid--3">
-        <Metric label={<>Today<span className="livedot" /></>}
-          value={todayRow.total} sub={fmtDate(today)} />
-        <Metric label="Yesterday" value={ydayRow.total} sub={fmtDate(addDays(today, -1))} />
-        <Metric label="Month to date" value={mtd?.total ?? 0} sub={fmtMonth(mtdKey, true)} />
       </div>
 
       {/* ── Trend + composition ── */}
