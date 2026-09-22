@@ -328,7 +328,11 @@ function chartDonut(host, segs, opts = {}) {
 /* ── time brackets: Explore's bar, value inside the bar, empties dropped ── */
 function chartBracket(host, rows, colour, opts = {}) {
   host.innerHTML = '';
-  const live = rows.filter(r => r.count > 0).sort((a, b) => a.count - b.count);
+  /* Longest bracket at the top, shortest at the bottom — the order Explore
+     draws, and the order a reader expects. Sorting by count instead put
+     "1 - 3 days" above "3 - 5 days" whenever the two bars were equal, which
+     read as a mistake because it was one. Empty brackets stay hidden. */
+  const live = rows.filter(r => r.count > 0).reverse();
   if (!live.length) {
     host.innerHTML = `<div class="empty">${opts.empty || 'Nothing in this bracket yet.'}</div>`;
     return;
