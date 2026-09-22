@@ -146,8 +146,12 @@ function derive(from, to) {
      period end put the same 14 tickets two buckets lower than the Zendesk
      screen — 1–3 days here against 3–5 days there, two days after the
      period closed. `ageAt` is reported so the card can say which day. */
-  const ageAt = new Date().toLocaleDateString('en-CA');
-  const today = ageAt > to ? ageAt : to;
+  /* And to the MINUTE, not to the day. Whole calendar days call a ticket
+     raised at 23:00 on the 18th and one raised at 00:01 on the 18th equally
+     old, so two tickets barely four and a half days old sat in "> 5 days"
+     here while Zendesk, which counts the hours, had them in "3 - 5 days". */
+  const ageNow = new Date();
+  const ageAt = ageNow.toLocaleDateString('en-CA');
 
   for (const t of rows) {
     const st = t[C.status], isL3 = t[C.lvl] === 1, open = st !== ST.SOLVED;
@@ -160,7 +164,7 @@ function derive(from, to) {
       if (st === ST.PENDING) { isL3 ? l3Pending++ : l1Pending++; }
       else { isL3 ? l3Progress++ : l1Progress++; }
       t[C.auto] ? autoOpen++ : custOpen++;
-      const age = daysBetween(dayKey(t[C.created]), today);
+      const age = (ageNow - new Date(t[C.created])) / 864e5;
       const bi = AGE_BUCKETS.findIndex(b => age >= b.lo && age < b.hi);
       if (bi >= 0) { ageCount[bi].all++; isL3 ? ageCount[bi].l3++ : ageCount[bi].l1++; }
     }
@@ -364,7 +368,7 @@ function derive(from, to) {
     },
     daily, monthly, byHour, peak, shifts,
     owners, dormant, cats, customers, customersShown, robots, robotsShown,
-    ageAt: today,
+    ageAt: ageAt,
     age: AGE_BUCKETS.map((b, i) => ({ ...b, ...ageCount[i] })),
     resTime: RES_BUCKETS.map((b, i) => ({ ...b, count: resCount[i] })),
     brackets: {
