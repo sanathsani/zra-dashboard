@@ -6,6 +6,7 @@
 // ============================================================================
 
 import { useState, useMemo } from "react";
+import { clearSession } from "./SignIn.jsx";
 import { ThemeProvider, useTheme, colorFor } from "./theme";
 import {
   useLiveData, derive, buildStableOrder, dataBounds, presetRanges, fmtDate,
@@ -40,7 +41,7 @@ const TITLES = {
   customers: "Customers", anomalies: "Anomalies",
 };
 
-function Dashboard() {
+function Dashboard({ session }) {
   const t = useTheme();
   const { loading, error, staleError, data, role, ts, refreshing } = useLiveData();
 
@@ -145,6 +146,19 @@ function Dashboard() {
         </div>
 
         <div className="sidebar__foot">
+          {session?.user && (
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, minWidth: 0 }}>
+              <span style={{ minWidth: 0, flex: 1 }}>
+                <span style={{ display: "block", fontSize: 12, fontWeight: 640, color: "var(--text2)",
+                               overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {session.user.name}
+                </span>
+                <span style={{ display: "block", fontSize: 11, color: "var(--text3)" }}>{session.user.role}</span>
+              </span>
+              <button className="btn btn--icon" title="Sign out" style={{ padding: "4px 7px" }}
+                      onClick={() => { clearSession(); location.reload(); }}>⏻</button>
+            </div>
+          )}
           <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--text3)" }}>
             <span className={`livedot ${staleError ? "livedot--stale" : ""}`} />
             <span>
@@ -223,10 +237,10 @@ function Dashboard() {
   );
 }
 
-export default function App() {
+export default function App({ session }) {
   return (
     <ThemeProvider>
-      <Dashboard />
+      <Dashboard session={session} />
     </ThemeProvider>
   );
 }

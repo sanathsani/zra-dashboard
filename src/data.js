@@ -14,7 +14,15 @@
 import { useState, useEffect } from "react";
 import { summariseFaults } from "./faults";
 
+import { getSession, clearSession } from "./SignIn.jsx";
+
 const WEB_APP_URL = "/api/data";
+
+/** The signed token /api/auth issued. Without it the feed is not served. */
+function authHeader() {
+  const s = getSession();
+  return s ? { Authorization: "Bearer " + s.token } : {};
+}
 const REFRESH_MS = 5 * 60 * 1000;
 
 // ─── Fetch ──────────────────────────────────────────────────────────────────
@@ -29,7 +37,18 @@ export function useLiveData() {
     async function fetchData(isRefresh) {
       if (isRefresh) setState(s => ({ ...s, refreshing: true }));
       try {
-        const res = await fetch(WEB_APP_URL, { method: "GET", redirect: "follow" });
+        const res = await fetch(WEB_APP_URL, {
+          method: "GET",
+          redirect: "follow",
+          headers: authHeader(),
+        });
+        // The session lasts 12 hours. When it lapses, drop it and show the
+        // sign-in card again rather than leaving a dashboard that cannot refresh.
+        if (res.status === 401) {
+          clearSession();
+          location.reload();
+          return;
+        }
         if (!res.ok) throw new Error("HTTP " + res.status);
         const text = await res.text();
         // Apps Script sometimes prefixes the payload with a /*O_o*/ comment.
