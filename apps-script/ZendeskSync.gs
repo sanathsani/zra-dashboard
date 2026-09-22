@@ -63,13 +63,15 @@
  */
 
 // ── Configuration ───────────────────────────────────────────────────────────
+// Globals are prefixed ZD_ so this file can sit beside Sky Console v8 in the
+// same Apps Script project without either overwriting the other's config.
 var SHEET_NAME  = 'All tickets Info';
 var AUDIT_SHEET = 'Sync Audit';
-var HEADER_ROWS = 2;              // row 1 headers, row 2 sub-headers
-var TZ          = 'Asia/Kolkata';
-var DATE_FMT    = 'dd-mmm-yyyy hh:mm:ss';
+var ZD_HEADER_ROWS = 2;              // row 1 headers, row 2 sub-headers
+var ZD_TZ          = 'Asia/Kolkata';
+var ZD_NUM_FMT    = 'dd-mmm-yyyy hh:mm:ss';
 
-var COL = {
+var ZD_COL = {
   TICKET: 1, CREATED: 2, CUSTOMER: 3, OWNER: 4, ESCALATED: 5,
   LEVEL: 6, SOLVED: 7, STATUS: 8, TYPE: 9, SUMMARY: 10, REMARKS: 11
 };
@@ -96,6 +98,24 @@ var AGENT_ALIASES = {
 
 var MAX_RUNTIME_MS = 4.5 * 60 * 1000;   // leave headroom under the 6-minute cap
 
+/**
+ * Duplicate handling. Two rows for one ticket double-count in every rollup, so
+ * the extra rows are deleted — but only after any hand-written Issue Summary or
+ * Remarks on them is merged into the row that survives.
+ *
+ * MAX_DELETES_PER_RUN is a circuit breaker: if a matching bug ever made many
+ * rows look like duplicates, the run reports and deletes nothing rather than
+ * gutting the sheet. Raise it deliberately if a real cleanup needs more.
+ */
+var MAX_DELETES_PER_RUN = 25;
+
+/**
+ * Rows in the sheet with no matching Zendesk ticket. Left alone by default and
+ * listed in the audit: they are usually deleted tickets or a mistyped number,
+ * and that is your call, not the script's.
+ */
+var DELETE_ORPHANS = false;
+
 // ── Entry points ────────────────────────────────────────────────────────────
 
 /** Step 4. Prints every ticket field and its id. */
@@ -103,7 +123,7 @@ function zdListFields() {
   var res = zdGet('/api/v2/ticket_fields.json?per_page=100');
   var lines = ['', 'id          type                 title'];
   (res.ticket_fields || []).forEach(function (f) {
-    lines.push(pad(String(f.id), 12) + pad(f.type, 21) + f.title);
+    lines.push(zdPad(String(f.id), 12) + zdPad(f.type, 21) + f.title);
   });
   lines.push('', 'Add to Script Properties: FLD_ISSUE_CATEGORY, FLD_LEVEL, FLD_ESCALATED');
   Logger.log(lines.join('\n'));
@@ -153,7 +173,7 @@ function run_(opts) {
     Logger.log('Zendesk returned ' + tickets.list.length + ' tickets.');
 
     if (opts.backup) {
-      var name = SHEET_NAME + ' backup ' + Utilities.formatDate(new Date(), TZ, 'yyyy-MM-dd HH:mm');
+      var name = SHEET_NAME + ' backup ' + Utilities.formatDate(new Date(), ZD_TZ, 'yyyy-MM-dd HH:mm');
       sheet.copyTo(ss).setName(name);
       Logger.log('Backed up to "' + name + '".');
     }
@@ -165,8 +185,10 @@ function run_(opts) {
       '', (opts.apply ? 'APPLIED' : 'AUDIT — nothing written'),
       '  rows added      : ' + result.added,
       '  cells corrected : ' + result.changed.length,
+      '  duplicates      : ' + result.dupes.length + ' ticket(s), ' + result.deleted + ' row(s) removed' +
+                               (result.deleteBlocked ? '  << REFUSED, over safety limit' : ''),
       '  in Zendesk only : ' + result.newTickets,
-      '  in sheet only   : ' + result.orphans.length + (result.orphans.length ? ' (' + result.orphans.slice(0, 10).join(', ') + ')' : ''),
+      '  in sheet only   : ' + result.orphans.length + (result.orphans.length ? ' (' + result.orphans.slice(0, 10).map(function (o) { return o.ticket; }).join(', ') + ')' : ''),
       '  unmatched owners: ' + Object.keys(result.unknownOwners).join(', '),
       '', 'See the "' + AUDIT_SHEET + '" tab for the detail.'
     ].join('\n'));
@@ -312,15 +334,34 @@ function zdToRow_(ticket, ctx) {
 }
 
 // ── Compare and write ───────────────────────────────────────────────────────
+
+/**
+ * Canonical ticket key. "#19", "19", " #19 " and 19 are the same ticket; without
+ * this the lookup misses and the script appends a duplicate instead of updating.
+ */
+function normKey_(v) {
+  if (v == null) return '';
+  var s = String(v).trim();
+  if (!s) return '';
+  var m = s.match(/\d+/);
+  return m ? String(parseInt(m[0], 10)) : s.toLowerCase();
+}
+
+/** How much irreplaceable human writing a row carries. Remarks weigh more. */
+function humanScore_(row) {
+  var summary = String(row[ZD_COL.SUMMARY - 1] || '').trim() ? 1 : 0;
+  var remarks = String(row[ZD_COL.REMARKS - 1] || '').trim() ? 2 : 0;
+  return summary + remarks;
+}
 var OWNED = [
-  ['created',   COL.CREATED,   'Created Date and Time'],
-  ['customer',  COL.CUSTOMER,  'Customer Name'],
-  ['owner',     COL.OWNER,     'L1 ticket owner'],
-  ['escalated', COL.ESCALATED, 'Escalated'],
-  ['level',     COL.LEVEL,     'L1 / L3'],
-  ['solved',    COL.SOLVED,    'Solved date'],
-  ['status',    COL.STATUS,    'Status'],
-  ['type',      COL.TYPE,      'Issue Type']
+  ['created',   ZD_COL.CREATED,   'Created Date and Time'],
+  ['customer',  ZD_COL.CUSTOMER,  'Customer Name'],
+  ['owner',     ZD_COL.OWNER,     'L1 ticket owner'],
+  ['escalated', ZD_COL.ESCALATED, 'Escalated'],
+  ['level',     ZD_COL.LEVEL,     'L1 / L3'],
+  ['solved',    ZD_COL.SOLVED,    'Solved date'],
+  ['status',    ZD_COL.STATUS,    'Status'],
+  ['type',      ZD_COL.TYPE,      'Issue Type']
 ];
 
 function sameValue_(a, b) {
@@ -336,17 +377,55 @@ function applyToSheet_(sheet, tickets, apply) {
   var p = props_();
   var ctx = { p: p, users: tickets.users, orgs: tickets.orgs, metrics: tickets.metrics };
 
-  var lastRow = Math.max(sheet.getLastRow(), HEADER_ROWS);
-  var height = lastRow - HEADER_ROWS;
+  var lastRow = Math.max(sheet.getLastRow(), ZD_HEADER_ROWS);
+  var height = lastRow - ZD_HEADER_ROWS;
   var grid = height > 0
-    ? sheet.getRange(HEADER_ROWS + 1, 1, height, COL.REMARKS).getValues()
+    ? sheet.getRange(ZD_HEADER_ROWS + 1, 1, height, ZD_COL.REMARKS).getValues()
     : [];
 
+  // key -> every grid index carrying it, so duplicates are visible
   var index = {};
   for (var i = 0; i < grid.length; i++) {
-    var key = String(grid[i][COL.TICKET - 1] || '').trim();
-    if (key) index[key] = i;
+    var key = normKey_(grid[i][ZD_COL.TICKET - 1]);
+    if (!key) continue;
+    if (!index[key]) index[key] = [];
+    index[key].push(i);
   }
+
+  // ── resolve duplicates: keep the row holding the most human writing, merge
+  //    the others' Summary/Remarks into it, and mark them for deletion.
+  var dupes = [], dropIdx = [];
+  Object.keys(index).forEach(function (k) {
+    var hits = index[k];
+    if (hits.length < 2) return;
+
+    var ranked = hits.map(function (i) { return { i: i, score: humanScore_(grid[i]) }; });
+    ranked.sort(function (a, b) { return (b.score - a.score) || (a.i - b.i); });
+    var keep = ranked[0].i;
+    var drop = ranked.slice(1).map(function (r) { return r.i; });
+
+    var merged = [];
+    drop.forEach(function (d) {
+      [[ZD_COL.SUMMARY, 'Issue Summary'], [ZD_COL.REMARKS, 'Remarks']].forEach(function (pair) {
+        var col = pair[0];
+        var keepVal = String(grid[keep][col - 1] || '').trim();
+        var dropVal = String(grid[d][col - 1] || '').trim();
+        if (!keepVal && dropVal) {
+          grid[keep][col - 1] = grid[d][col - 1];
+          merged.push(pair[1] + ' from row ' + (ZD_HEADER_ROWS + 1 + d));
+        }
+      });
+    });
+
+    dupes.push({
+      ticket: String(grid[keep][ZD_COL.TICKET - 1] || '#' + k),
+      keepRow: ZD_HEADER_ROWS + 1 + keep,
+      dropRows: drop.map(function (d) { return ZD_HEADER_ROWS + 1 + d; }),
+      merged: merged
+    });
+    drop.forEach(function (d) { dropIdx.push(d); });
+    index[k] = [keep];
+  });
 
   var changed = [], appended = [], unknownOwners = {}, newTickets = 0;
   var seen = {};
@@ -354,7 +433,7 @@ function applyToSheet_(sheet, tickets, apply) {
   tickets.list.forEach(function (t) {
     if (t.status === 'deleted') return;
     var z = zdToRow_(t, ctx);
-    seen[z.ticket] = true;
+    seen[normKey_(z.ticket)] = true;
 
     if (z.rawAssignee && z.owner && z.rawAssignee.split(/\s+/)[0] !== z.owner) {
       // alias in use — fine
@@ -362,7 +441,7 @@ function applyToSheet_(sheet, tickets, apply) {
       unknownOwners[z.rawAssignee] = true;
     }
 
-    var at = index[z.ticket];
+    var at = index[normKey_(z.ticket)] ? index[normKey_(z.ticket)][0] : undefined;
     if (at === undefined) {
       newTickets++;
       appended.push(z);
@@ -375,40 +454,66 @@ function applyToSheet_(sheet, tickets, apply) {
       var now = z[key];
       if (now === '' || now == null) return;          // never blank a filled cell
       if (sameValue_(was, now)) return;
-      changed.push({ ticket: z.ticket, row: HEADER_ROWS + 1 + at, col: col,
+      changed.push({ ticket: z.ticket, row: ZD_HEADER_ROWS + 1 + at, col: col,
                      field: label, was: was, now: now });
       if (apply) grid[at][col - 1] = now;
     });
 
     // Issue Summary only when the team has not written one.
-    if (apply && !String(grid[at][COL.SUMMARY - 1] || '').trim() && z.subject) {
-      grid[at][COL.SUMMARY - 1] = z.subject;
+    if (apply && !String(grid[at][ZD_COL.SUMMARY - 1] || '').trim() && z.subject) {
+      grid[at][ZD_COL.SUMMARY - 1] = z.subject;
     }
   });
 
-  var orphans = Object.keys(index).filter(function (k) { return !seen[k]; });
+  var orphanKeys = Object.keys(index).filter(function (k) { return !seen[k]; });
+  var orphans = orphanKeys.map(function (k) {
+    return { key: k, row: ZD_HEADER_ROWS + 1 + index[k][0],
+             ticket: String(grid[index[k][0]][ZD_COL.TICKET - 1] || '#' + k) };
+  });
+
+  // Rows to remove: duplicates always, orphans only if explicitly enabled.
+  var deleteIdx = dropIdx.slice();
+  if (DELETE_ORPHANS) orphanKeys.forEach(function (k) { deleteIdx.push(index[k][0]); });
+
+  var deleteBlocked = deleteIdx.length > MAX_DELETES_PER_RUN;
 
   if (apply) {
     if (grid.length) {
-      sheet.getRange(HEADER_ROWS + 1, 1, grid.length, COL.REMARKS).setValues(grid);
+      sheet.getRange(ZD_HEADER_ROWS + 1, 1, grid.length, ZD_COL.REMARKS).setValues(grid);
     }
     if (appended.length) {
       var block = appended.map(function (z) {
         return [z.ticket, z.created, z.customer, z.owner, z.escalated,
                 z.level, z.solved, z.status, z.type, z.subject, ''];
       });
-      sheet.getRange(sheet.getLastRow() + 1, 1, block.length, COL.REMARKS).setValues(block);
+      sheet.getRange(sheet.getLastRow() + 1, 1, block.length, ZD_COL.REMARKS).setValues(block);
     }
+
+    // Deletions last, and bottom-up so the row numbers stay valid as we go.
+    // Appended rows sit below everything here, so they only shift upward.
+    if (deleteIdx.length && !deleteBlocked) {
+      deleteIdx
+        .map(function (i) { return ZD_HEADER_ROWS + 1 + i; })
+        .sort(function (a, b) { return b - a; })
+        .forEach(function (rowNum) { sheet.deleteRow(rowNum); });
+    } else if (deleteBlocked) {
+      Logger.log('REFUSED to delete ' + deleteIdx.length + ' rows — over the ' +
+                 MAX_DELETES_PER_RUN + ' row safety limit. Nothing was deleted. ' +
+                 'Check the Sync Audit tab before raising MAX_DELETES_PER_RUN.');
+    }
+
     // Real dates, explicitly formatted, so the SUMPRODUCT rollups keep matching.
-    var h = sheet.getLastRow() - HEADER_ROWS;
+    var h = sheet.getLastRow() - ZD_HEADER_ROWS;
     if (h > 0) {
-      sheet.getRange(HEADER_ROWS + 1, COL.CREATED, h, 1).setNumberFormat(DATE_FMT);
-      sheet.getRange(HEADER_ROWS + 1, COL.SOLVED,  h, 1).setNumberFormat(DATE_FMT);
+      sheet.getRange(ZD_HEADER_ROWS + 1, ZD_COL.CREATED, h, 1).setNumberFormat(ZD_NUM_FMT);
+      sheet.getRange(ZD_HEADER_ROWS + 1, ZD_COL.SOLVED,  h, 1).setNumberFormat(ZD_NUM_FMT);
     }
   }
 
   return { changed: changed, added: apply ? appended.length : 0,
-           newTickets: newTickets, orphans: orphans, unknownOwners: unknownOwners };
+           newTickets: newTickets, orphans: orphans, unknownOwners: unknownOwners,
+           dupes: dupes, deleted: (apply && !deleteBlocked) ? deleteIdx.length : 0,
+           deleteBlocked: deleteBlocked };
 }
 
 function writeAudit_(ss, result, applied) {
@@ -419,18 +524,36 @@ function writeAudit_(ss, result, applied) {
   result.changed.forEach(function (c) { byField[c.field] = (byField[c.field] || 0) + 1; });
 
   var out = [[applied ? 'APPLIED' : 'AUDIT ONLY — nothing was written',
-              Utilities.formatDate(new Date(), TZ, 'dd-MMM-yyyy HH:mm:ss'), '', '', '']];
+              Utilities.formatDate(new Date(), ZD_TZ, 'dd-MMM-yyyy HH:mm:ss'), '', '', '']];
   out.push(['', '', '', '', '']);
   out.push(['Summary', '', '', '', '']);
   out.push(['Cells differing from Zendesk', result.changed.length, '', '', '']);
   Object.keys(byField).sort().forEach(function (f) { out.push(['  ' + f, byField[f], '', '', '']); });
-  out.push(['Tickets in Zendesk but not the sheet', result.newTickets, '', '', '']);
+  out.push(['Tickets in Zendesk but not the sheet (added)', result.newTickets, '', '', '']);
+  out.push(['Duplicate ticket rows', result.dupes.length,
+            result.dupes.length ? 'extra rows: ' + result.dupes.reduce(function (n, d) {
+              return n + d.dropRows.length; }, 0) : '', '', '']);
+  if (result.deleteBlocked) {
+    out.push(['!! DELETION REFUSED', 'over the ' + MAX_DELETES_PER_RUN + '-row safety limit',
+              'nothing deleted — review below', '', '']);
+  }
   out.push(['Tickets in the sheet but not Zendesk', result.orphans.length,
-            result.orphans.slice(0, 40).join(', '), '', '']);
+            result.orphans.slice(0, 40).map(function (o) { return o.ticket; }).join(', '),
+            DELETE_ORPHANS ? 'deleted' : 'left alone', '']);
   var uo = Object.keys(result.unknownOwners);
   out.push(['Zendesk agents with no sheet name', uo.length, uo.join(', '), '', '']);
+  if (result.dupes.length) {
+    out.push(['', '', '', '', '']);
+    out.push(['Duplicates', 'Row kept', 'Rows removed', 'Writing carried over', '']);
+    result.dupes.forEach(function (d) {
+      out.push([d.ticket, d.keepRow, d.dropRows.join(', '),
+                d.merged.length ? d.merged.join('; ') : 'none', '']);
+    });
+  }
+
   out.push(['', '', '', '', '']);
   out.push(['Ticket', 'Field', 'Sheet had', 'Zendesk says', 'Row']);
+  var headerAt = out.length;
 
   result.changed.forEach(function (c) {
     out.push([c.ticket, c.field, fmtCell_(c.was), fmtCell_(c.now), c.row]);
@@ -438,14 +561,14 @@ function writeAudit_(ss, result, applied) {
 
   sh.getRange(1, 1, out.length, 5).setValues(out);
   sh.getRange(1, 1, 1, 5).setFontWeight('bold');
-  sh.getRange(out.length - result.changed.length, 1, 1, 5).setFontWeight('bold');
-  sh.setFrozenRows(Math.max(1, out.length - result.changed.length));
+  sh.getRange(headerAt, 1, 1, 5).setFontWeight('bold');
+  sh.setFrozenRows(headerAt);
   sh.autoResizeColumns(1, 5);
 }
 
 function fmtCell_(v) {
-  if (v instanceof Date) return Utilities.formatDate(v, TZ, 'dd-MMM-yyyy HH:mm:ss');
+  if (v instanceof Date) return Utilities.formatDate(v, ZD_TZ, 'dd-MMM-yyyy HH:mm:ss');
   return v === '' || v == null ? '(blank)' : String(v);
 }
 
-function pad(s, n) { s = String(s); while (s.length < n) s += ' '; return s; }
+function zdPad(s, n) { s = String(s); while (s.length < n) s += ' '; return s; }
