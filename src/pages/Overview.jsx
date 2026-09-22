@@ -62,6 +62,7 @@ export default function Overview({
     <div className="stack">
 
       {/* ── Needs attention, before any totals ── */}
+      <div className="kpihead"><h3>Needs attention</h3><span>{rangeLabel}</span></div>
       <div className="grid grid--4">
         <Stat label="Unresolved" value={s.unresolved} accent={s.unresolved ? t.critical : t.good}
           alert={s.unresolved > 15} sub={`${s.pending} pending · ${s.inProgress} in progress`}
@@ -84,38 +85,33 @@ export default function Overview({
           }) : undefined} />
       </div>
 
-      {/* ── Volume context ── */}
-      <Card title="Volume" sub={rangeLabel}>
-        <div className="grid grid--4" style={{ gap: 14, marginTop: 4 }}>
-          {[
-            ["Total", s.total.toLocaleString(), rangeLabel, null],
-            ["Resolved", s.resolved.toLocaleString(), `${s.rate}% resolve rate`, null],
-            ["Handled at L1", s.l1.toLocaleString(), `${pct(s.l1, s.total)}% self-served`, null],
-            ["Escalated to L3", s.l3.toLocaleString(), `${pct(s.l3, s.total)}% escalated`, null],
-          ].map(([label, value, sub]) => (
-            <div key={label}>
-              <div className="stat__label">{label}</div>
-              <div style={{ fontSize: 23, fontWeight: 680, letterSpacing: "-.02em", marginTop: 3 }}>{value}</div>
-              <div style={{ fontSize: 12, color: "var(--text3)", marginTop: 2 }}>{sub}</div>
-            </div>
-          ))}
-        </div>
-        <div style={{ display: "flex", gap: 22, marginTop: 16, paddingTop: 13,
-                      borderTop: "1px solid var(--border)", flexWrap: "wrap" }}>
-          {[
-            ["Today", todayRow.total, fmtDate(today), true],
-            ["Yesterday", ydayRow.total, fmtDate(addDays(today, -1)), false],
-            ["Month to date", mtd?.total ?? 0, fmtMonth(mtdKey, true), false],
-            ["Daily average", avg.toFixed(1), `over ${d.daily.length} days`, false],
-          ].map(([label, value, sub, live]) => (
-            <div key={label} style={{ minWidth: 110 }}>
-              <div className="stat__label">{label}{live && <span className="livedot" />}</div>
-              <div style={{ fontSize: 19, fontWeight: 650, marginTop: 3 }}>{value}</div>
-              <div style={{ fontSize: 11.5, color: "var(--text3)" }}>{sub}</div>
-            </div>
-          ))}
-        </div>
-      </Card>
+      {/* ── Volume ──────────────────────────────────────────────────────────
+         Every number on this page used to be its own size: 25px in the row
+         above, 23px here, 19px underneath, and the bottom two rows were bare
+         divs rather than tiles. Three type scales and two card treatments for
+         one page of figures. It is one tile and one scale now, with the second
+         row a deliberate step down because it is cadence, not volume. */}
+      <div className="kpihead"><h3>Volume</h3><span>{rangeLabel}</span></div>
+      <div className="grid grid--4">
+        {[
+          ["Total", s.total.toLocaleString(), rangeLabel],
+          ["Resolved", s.resolved.toLocaleString(), `${s.rate}% resolve rate`],
+          ["Handled at L1", s.l1.toLocaleString(), `${pct(s.l1, s.total)}% self-served`],
+          ["Escalated to L3", s.l3.toLocaleString(), `${pct(s.l3, s.total)}% escalated`],
+        ].map(([label, value, sub]) => (
+          <Stat key={label} label={label} value={value} sub={sub} accent={t.accent} />
+        ))}
+      </div>
+      <div className="grid grid--4">
+        <Stat small label={<>Today<span className="livedot" /></>}
+          value={todayRow.total} sub={fmtDate(today)} accent={t.text3} />
+        <Stat small label="Yesterday" value={ydayRow.total}
+          sub={fmtDate(addDays(today, -1))} accent={t.text3} />
+        <Stat small label="Month to date" value={mtd?.total ?? 0}
+          sub={fmtMonth(mtdKey, true)} accent={t.text3} />
+        <Stat small label="Daily average" value={avg.toFixed(1)}
+          sub={`over ${d.daily.length} days`} accent={t.text3} />
+      </div>
 
       {/* ── Trend + composition ── */}
       <div className="grid grid--wide grid--top">

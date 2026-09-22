@@ -383,3 +383,12 @@ button.stat:hover { box-shadow: var(--shadow2); transform: translateY(-1px); bor
    so it keeps its own padding rather than sitting inside the dashboard's. */
 .content--flush { padding: 0; display: flex; min-height: 0; }
 .content--flush > iframe { flex: 1; min-height: 0; width: 100%; border: 0; }
+
+/* ── a run of tiles gets a quiet heading ────────────────────────────────
+   so "needs attention" and "volume" read as two groups rather than eight
+   numbers in a row. */
+.kpihead { display: flex; align-items: baseline; justify-content: space-between;
+  gap: 12px; margin: 6px 2px -2px; }
+.kpihead h3 { margin: 0; font-size: 11.5px; font-weight: 700; color: var(--text3);
+  text-transform: uppercase; letter-spacing: .08em; }
+.kpihead span { font-size: 12px; color: var(--text3); }
