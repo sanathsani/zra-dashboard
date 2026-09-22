@@ -24,7 +24,7 @@ const EX = {
 function deckModel() {
   const s = D.summary, sla = D.sla;
   const period = `${fmtDate(D.from)} – ${fmtDate(D.to)}`;
-  const n = id => (NOTES[noteKey(id)] || '').trim();
+  const n = id => noteText(NOTES[noteKey(id)]);       // views.js — commentary is rich text now
   const resL1 = sla.resL1Cust + sla.resL1Auto, resL3 = sla.resL3Cust + sla.resL3Auto;
   const slides = [];
 
@@ -186,17 +186,6 @@ function deckModel() {
     note: n('s10'),
   });
 
-  slides.push({
-    title: 'Agent contribution', sub: `${D.owners.length} agents active in period`,
-    table: {
-      head: ['Agent', 'Role', 'Tickets', 'L1', 'L3', 'Resolved', 'Resolution rate'],
-      w: [0.22, 0.18, 0.12, 0.12, 0.12, 0.12, 0.12], align: ['l', 'l', 'r', 'r', 'r', 'r', 'r'],
-      rows: D.owners.map(o => [o.name, o.role, num(o.total), num(o.l1), num(o.l3), num(o.solved),
-        pct1(o.solved, o.total) + '%']),
-    },
-    foot: D.dormant.length ? `On the roster but no tickets in this period: ${D.dormant.join(', ')}.` : '',
-    note: n('s11'),
-  });
 
   slides.push({ kind: 'end', title: 'Thank you' });
   return slides;

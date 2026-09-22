@@ -569,3 +569,30 @@ table.tbl { font-size: 13px; }
 .embed__msg { min-height: 60vh; display: grid; place-content: center; gap: 12px; justify-items: center;
   text-align: center; padding: 30px; color: var(--ink2); font-size: 13px; max-width: 520px; margin: 0 auto; }
 .embed__msg .boot__bar { width: 200px; margin: 0; }
+
+
+/* ── commentary toolbar ─────────────────────────────────────────────────
+   The commentary is a small word processor, not a text box. The bar hides
+   itself in Present and in print, where the writing is the only thing that
+   should be left on the page. */
+.note__bar { display: flex; align-items: center; gap: 4px; flex-wrap: wrap;
+  padding: 8px 14px 0; }
+.note__bar button, .note__bar select {
+  height: 26px; min-width: 26px; padding: 0 7px; font-size: 12px; line-height: 1;
+  background: var(--card2); color: var(--ink2); border: 1px solid var(--line);
+  border-radius: 7px; cursor: pointer; font-family: inherit; }
+.note__bar select { padding-right: 4px; }
+.note__bar button:hover, .note__bar select:hover { background: var(--card); color: var(--ink); }
+.note__bar button:active { transform: translateY(1px); }
+.note__sep { width: 1px; height: 16px; background: var(--line); margin: 0 3px; }
+
+.note__body ul, .note__body ol { margin: 6px 0 6px 6px; padding-left: 20px; }
+.note__body li { margin: 3px 0; }
+.note__body h3 { font-size: 15px; font-weight: 700; color: var(--ink); margin: 10px 0 4px; }
+.note__body h4 { font-size: 13px; font-weight: 700; color: var(--ink); margin: 8px 0 4px; }
+.note__body p  { margin: 4px 0; }
+.note__body b, .note__body strong { font-weight: 700; color: var(--ink); }
+.note__body a { color: var(--s1); }
+
+.present .note__bar { display: none; }
+@media print { .note__bar { display: none !important; } }

@@ -85,10 +85,7 @@ function crossTab() {
     <div class="heatkey"><span>Fewer</span>
       <i style="background:var(--ord1)"></i><i style="background:var(--ord2)"></i>
       <i style="background:var(--ord3)"></i><i style="background:var(--ord4)"></i>
-      <i style="background:var(--ord5)"></i><span>More tickets</span></div>
-    ${grand < D.total ? `<div class="bandnote">Covers the ${rows.length} accounts carrying a named
-      organisation — ${num(D.total - grand)} tickets arrived without one and are counted in the period
-      totals only.</div>` : ''}`;
+      <i style="background:var(--ord5)"></i><span>More tickets</span></div>`;
 }
 
 function card(title, sub, body, cls = '') {
@@ -327,8 +324,7 @@ function viewOverview() {
   <div style="${cols(330)};margin-bottom:16px">
     ${card('Load by shift', 'Share of tickets opened in each shift window', shiftBlock())}
     ${card('L1 vs L3 per agent', `${D.owners.length} agent${D.owners.length === 1 ? '' : 's'} handled tickets in this range`,
-      '<div id="c-agents"></div>' + (D.dormant.length
-        ? `<div class="bandnote">Not shown: ${D.dormant.map(esc).join(', ')} — no tickets in this range.</div>` : ''))}
+      '<div id="c-agents"></div>')}
   </div>
 
   <div style="${cols(330)};margin-bottom:16px">
@@ -423,8 +419,7 @@ function reviewSections() {
         ${mbox('Unsolved Tickets - L1', num(s.l1Open), `${s.l1Pending} pending · ${s.l1Progress} in progress`)}
         ${mbox('Unsolved Tickets - L3', num(s.l3Open), `${s.l3Pending} pending · ${s.l3Progress} in progress`)}
         ${mbox('Resolution rate', pct1(s.solved, s.total) + '%', 'solved ÷ created')}
-      </div>
-      <div class="bandnote">Every figure counts tickets <b>created</b> in the period.</div>`,
+      </div>`,
   });
 
   /* 02 — the three by-status panels, exactly as Explore shows them */
@@ -526,9 +521,7 @@ function reviewSections() {
           <td class="num">${num(x.solved)}</td><td class="num">${pct1(x.solved, x.tickets)}%</td></tr>`).join('')}</tbody>
         <tfoot><tr><td></td><td>Total</td><td class="num">${num(D.total)}</td>
           <td class="num">100.00%</td><td class="num">${num(s.solved)}</td>
-          <td class="num">${pct1(s.solved, D.total)}%</td></tr></tfoot></table></div>
-      <div class="bandnote">Shift windows are normalised to non-overlapping 8-hour blocks, so every ticket
-        lands in exactly one shift and the column adds to the period total.</div>`,
+          <td class="num">${pct1(s.solved, D.total)}%</td></tr></tfoot></table></div>`,
   });
 
   out.push({
@@ -563,20 +556,10 @@ function reviewSections() {
     ph: 'Speed story: how fast the team is replying and closing, and any outliers worth naming.',
     html: `<div style="${cols(340)}">
       ${card('First Response Time by Time Bracket', "Agent's first reply · solved tickets",
-        '<div class="js-fr"></div>' + (D.brackets.hasResponse
-          ? `<div class="srcnote"><i style="background:var(--s3)"></i>
-             <span>From Zendesk's first-reply clock, over solved tickets — the same count
-             Explore makes. A ticket nobody replied to lands in <b>No replies</b>.</span></div>`
-          : `<div class="srcnote"><i style="background:var(--warn)"></i>
-             <span>Waiting on the <b>First Response (min)</b> column. The sync already downloads it —
-             it just is not written to the tracker sheet yet.</span></div>`))}
+        '<div class="js-fr"></div>')}
       ${card('Target Restoration Time by Time Bracket',
         D.brackets.restoreFromZendesk ? 'Requester wait clock · solved tickets' : 'Created to solved',
-        '<div class="js-restore"></div>' +
-        `<div class="srcnote"><i style="background:${D.brackets.restoreFromZendesk ? 'var(--s3)' : 'var(--warn)'}"></i>
-         <span>${D.brackets.restoreFromZendesk
-           ? "Zendesk's own requester-wait clock, so this matches Explore."
-           : 'Created date to solved date from the sheet. Explore pauses its clock while a ticket is pending, so its brackets read a little faster until the sync stores that column.'}</span></div>`)}
+        '<div class="js-restore"></div>')}
     </div>`,
     mount(root) {
       chartBracket(q(root, '.js-fr'), D.brackets.response, 'var(--s3)',
@@ -610,42 +593,112 @@ function reviewSections() {
       </div>`,
   });
 
-  out.push({
-    id: 's11', title: 'Agent contribution', sub: `${D.owners.length} agents active in the period`, tag: period,
-    ph: 'Team notes — joiners, leavers, coverage changes the client should know about.',
-    html: `<div class="tblwrap"><table class="tbl">
-      <thead><tr><th>Agent</th><th>Role</th><th class="num">Tickets</th><th class="num">L1</th>
-        <th class="num">L3</th><th class="num">Resolved</th><th class="num">Resolution rate</th></tr></thead>
-      <tbody>${D.owners.map(o => `<tr><td><b>${esc(o.name)}</b></td><td style="color:var(--ink3)">${esc(o.role)}</td>
-        <td class="num">${num(o.total)}</td>
-        <td class="num"><span class="pill pill--blue">${num(o.l1)}</span></td>
-        <td class="num"><span class="pill pill--orange">${num(o.l3)}</span></td>
-        <td class="num">${num(o.solved)}</td><td class="num">${pct1(o.solved, o.total)}%</td></tr>`).join('')}</tbody>
-      </table></div>
-      ${D.dormant.length ? `<div class="bandnote">On the roster but no tickets in this period:
-        ${D.dormant.map(esc).join(', ')} — left out of the review by design.</div>` : ''}`,
-  });
 
   return out;
 }
 
+/* Commentary is written, not typed into a box: headings, bold, bullets and
+   numbers, three sizes and three faces. It is kept as HTML in this browser,
+   the same place the plain text used to live. */
+const NOTE_TOOLS = `
+  <button type="button" data-cmd="bold" title="Bold (Ctrl+B)"><b>B</b></button>
+  <button type="button" data-cmd="italic" title="Italic (Ctrl+I)"><i>I</i></button>
+  <button type="button" data-cmd="underline" title="Underline (Ctrl+U)"><u>U</u></button>
+  <span class="note__sep"></span>
+  <button type="button" data-cmd="insertUnorderedList" title="Bullet list">&#8226;</button>
+  <button type="button" data-cmd="insertOrderedList" title="Numbered list">1.</button>
+  <span class="note__sep"></span>
+  <select data-cmd="formatBlock" title="Style">
+    <option value="">Style</option><option value="p">Body</option>
+    <option value="h3">Heading</option><option value="h4">Subheading</option>
+  </select>
+  <select data-cmd="fontSize" title="Size">
+    <option value="">Size</option><option value="2">Small</option>
+    <option value="3">Normal</option><option value="5">Large</option>
+  </select>
+  <select data-cmd="fontName" title="Font">
+    <option value="">Font</option><option value="inherit">Default</option>
+    <option value="Georgia, 'Times New Roman', serif">Serif</option>
+    <option value="ui-monospace, Menlo, Consolas, monospace">Mono</option>
+  </select>
+  <span class="note__sep"></span>
+  <button type="button" data-cmd="removeFormat" title="Clear formatting">&#10005;</button>`;
+
+/* Whatever is stored gets rendered, so nothing executable goes back in. */
+function cleanNote(html) {
+  return String(html == null ? '' : html)
+    .replace(/<\s*(script|style|iframe|object|embed|link|meta)[^>]*>[\s\S]*?<\s*\/\s*\1\s*>/gi, '')
+    .replace(/<\s*(script|style|iframe|object|embed|link|meta)[^>]*>/gi, '')
+    .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
+    .replace(/(href|src)\s*=\s*("|')?\s*javascript:[^"'>]*/gi, '');
+}
+
+/* Notes written before this were plain text; keep their line breaks. */
+function noteMarkup(v) {
+  const t = String(v == null ? '' : v);
+  return /<[a-z][\s\S]*>/i.test(t) ? cleanNote(t) : esc(t).replace(/\n/g, '<br>');
+}
+
+/* The deck and the PDF want words, not tags. */
+function noteText(v) {
+  const t = String(v == null ? '' : v);
+  if (!/<[a-z][\s\S]*>/i.test(t)) return t.trim();
+  const d = document.createElement('div');
+  d.innerHTML = cleanNote(t);
+  d.querySelectorAll('li').forEach(li => li.insertAdjacentText('afterbegin', '• '));
+  d.querySelectorAll('li, p, div, h3, h4, br, tr').forEach(el => el.insertAdjacentText('beforeend', '\n'));
+  return (d.textContent || '').replace(/\n{3,}/g, '\n\n').trim();
+}
+
 function noteHTML(id, ph) {
-  const v = NOTES[noteKey(id)] || '';
   return `<div class="note" data-note="${id}">
     <div class="note__head">✎ Commentary — yours to write</div>
-    <div class="note__body" contenteditable="true" data-ph="${esc(ph)}">${esc(v)}</div></div>`;
+    <div class="note__bar">${NOTE_TOOLS}</div>
+    <div class="note__body" contenteditable="true" data-ph="${esc(ph)}">${noteMarkup(NOTES[noteKey(id)])}</div></div>`;
 }
+
 function wireNotes(scope) {
-  scope.querySelectorAll('.note__body[contenteditable]').forEach(n => {
-    /* innerText keeps the line breaks textContent throws away */
-    n.addEventListener('input', () => {
-      NOTES[noteKey(n.closest('[data-note]').dataset.note)] = n.innerText.replace(/\n{3,}/g, '\n\n').replace(/\s+$/, '');
+  scope.querySelectorAll('.note[data-note]').forEach(box => {
+    const body = box.querySelector('.note__body[contenteditable]');
+    if (!body) return;
+
+    const save = () => {
+      NOTES[noteKey(box.dataset.note)] = cleanNote(body.innerHTML).trim();
       saveNotes(NOTES);
-    });
-    n.addEventListener('paste', e => {
+    };
+    /* A toolbar click moves focus, and the browser drops the selection with
+       it, so remember where the caret was and put it back before acting. */
+    let mark = null;
+    const remember = () => {
+      const sel = getSelection();
+      if (sel && sel.rangeCount && body.contains(sel.anchorNode)) mark = sel.getRangeAt(0).cloneRange();
+    };
+    ['keyup', 'mouseup', 'input', 'blur'].forEach(ev => body.addEventListener(ev, remember));
+    body.addEventListener('input', save);
+    body.addEventListener('blur', save);
+    body.addEventListener('paste', e => {
       e.preventDefault();
       const t = (e.clipboardData || window.clipboardData).getData('text/plain');
       document.execCommand('insertText', false, t);
+    });
+
+    const run = (cmd, value) => {
+      body.focus();
+      if (mark) { const sel = getSelection(); sel.removeAllRanges(); sel.addRange(mark); }
+      document.execCommand(cmd, false, value);
+      remember();
+      save();
+    };
+    box.querySelectorAll('.note__bar [data-cmd]').forEach(ctl => {
+      if (ctl.tagName === 'SELECT') {
+        ctl.addEventListener('change', () => {
+          if (ctl.value) run(ctl.dataset.cmd, ctl.dataset.cmd === 'formatBlock' ? '<' + ctl.value + '>' : ctl.value);
+          ctl.selectedIndex = 0;
+        });
+      } else {
+        ctl.addEventListener('mousedown', e => e.preventDefault());   // keep the selection
+        ctl.addEventListener('click', () => run(ctl.dataset.cmd, null));
+      }
     });
   });
 }
@@ -660,8 +713,8 @@ function secHTML(sec, i, withNote) {
   </section>`;
 }
 function noteStatic(id) {
-  const v = (NOTES[noteKey(id)] || '').trim();
-  return v ? `<div class="note"><div class="note__body">${esc(v)}</div></div>` : '';
+  const v = noteMarkup(NOTES[noteKey(id)]).trim();
+  return v ? `<div class="note"><div class="note__body">${v}</div></div>` : '';
 }
 
 function viewReview() {
