@@ -1,17 +1,8 @@
-﻿import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
+import { defineConfig } from 'vite'
 
+// The dashboard is plain HTML, CSS and JS served from public/app, so there is
+// no React plugin and no bundling step to go wrong. The /api functions run on
+// Vercel; `vercel dev` serves them locally, plain `vite` does not.
 export default defineConfig({
-  plugins: [react()],
-  server: {
-    proxy: {
-      '/api/data': {
-        target: 'https://script.google.com',
-        changeOrigin: true,
-        rewrite: () => '/macros/s/AKfycby_sOH1E-FVyAlt7g5TY9iPMNNVR4DZAsu56V17WNaksNNv1cJOUhEeNDh7CTDkRQ0x/exec',
-        followRedirects: true,
-        secure: true,
-      }
-    }
-  }
+  build: { outDir: 'dist', emptyOutDir: true },
 })

@@ -101,6 +101,16 @@ function doGet(e) {
     return feedJson({ ok: false, code: 401, error: 'Unauthorized' });
   }
 
+  // ?mode=users — the account list, for api/auth.js only. Salted hashes, never
+  // passwords, and it is behind the same key as the feed itself.
+  if (((e && e.parameter && e.parameter.mode) || '') === 'users') {
+    try {
+      return feedJson({ ok: true, users: feedUsers() });
+    } catch (err2) {
+      return feedJson({ ok: false, error: String((err2 && err2.message) || err2) });
+    }
+  }
+
   try {
     return feedJson({ ok: true, role: 'internal', data: feedPayload() });
   } catch (err) {
@@ -509,4 +519,101 @@ function feedClientPatch() {
     '  }',
     '}'
   ].join('\n'));
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ACCOUNTS — the "Users" tab of this spreadsheet
+// ═══════════════════════════════════════════════════════════════════════════
+//
+//   A email   B name   C role   D salt   E hash
+//
+// A password is never stored and never travels. usersSetPassword() makes a
+// random salt, stores sha256(salt + password), and forgets the rest. Vercel's
+// api/auth.js repeats that hash on sign-in and compares the two.
+//
+// To add or change an account, run this in the editor and then clear the line:
+//
+//   function once() { usersSetPassword('sanath.reddy@awign.com',
+//                                      'Sanath Reddy R', 'Supervisor', 'the-password'); }
+
+var USERS_SHEET = 'Users';
+
+function usersSheet() {
+  var ss = activeSS();
+  var sh = ss.getSheetByName(USERS_SHEET);
+  if (!sh) {
+    sh = ss.insertSheet(USERS_SHEET);
+    sh.getRange(1, 1, 1, 5).setValues([['email', 'name', 'role', 'salt', 'hash']])
+      .setFontWeight('bold');
+    sh.setFrozenRows(1);
+    sh.setColumnWidth(1, 240);
+    sh.setColumnWidth(2, 180);
+  }
+  return sh;
+}
+
+/** The account list served to api/auth.js. Hashes only. */
+function feedUsers() {
+  var sh = usersSheet();
+  var n = sh.getLastRow() - 1;
+  if (n < 1) return [];
+  return sh.getRange(2, 1, n, 5).getValues()
+    .filter(function (r) { return String(r[0] || '').trim(); })
+    .map(function (r) {
+      return {
+        email: String(r[0]).trim().toLowerCase(),
+        name:  String(r[1] || '').trim(),
+        role:  String(r[2] || 'Agent').trim(),
+        salt:  String(r[3] || ''),
+        hash:  String(r[4] || '')
+      };
+    });
+}
+
+function usersHash(salt, password) {
+  var bytes = Utilities.computeDigest(
+    Utilities.DigestAlgorithm.SHA_256, salt + password, Utilities.Charset.UTF_8);
+  return bytes.map(function (b) {
+    return ((b < 0 ? b + 256 : b) + 0x100).toString(16).slice(1);
+  }).join('');
+}
+
+/** Creates the account if it is new, or replaces that person's password. */
+function usersSetPassword(email, name, role, password) {
+  email = String(email || '').trim().toLowerCase();
+  if (!email)             throw new Error('Give an email address.');
+  if (!password || String(password).length < 8) {
+    throw new Error('Use a password of at least 8 characters.');
+  }
+
+  var salt = Utilities.getUuid().replace(/-/g, '');
+  var hash = usersHash(salt, String(password));
+  var sh   = usersSheet();
+  var n    = sh.getLastRow() - 1;
+  var row  = 0;
+
+  if (n > 0) {
+    var col = sh.getRange(2, 1, n, 1).getValues();
+    for (var i = 0; i < col.length; i++) {
+      if (String(col[i][0] || '').trim().toLowerCase() === email) { row = i + 2; break; }
+    }
+  }
+  if (!row) row = sh.getLastRow() + 1;
+
+  sh.getRange(row, 1, 1, 5).setValues([[email, name || email, role || 'Agent', salt, hash]]);
+  SpreadsheetApp.flush();
+  Logger.log('Password set for ' + email + ' (row ' + row + '). ' +
+             'Clear the password out of your script before you save it.');
+}
+
+/** Who can sign in. Prints no salts and no hashes. */
+function usersList() {
+  var u = feedUsers();
+  Logger.log(u.length
+    ? u.map(function (x) {
+        return x.email + '  ' + (x.name || '') + '  [' + x.role + ']' +
+               (x.hash ? '' : '   ← no password set');
+      }).join('\n')
+    : 'No accounts yet. Run usersSetPassword(email, name, role, password).');
 }

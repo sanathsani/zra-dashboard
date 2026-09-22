@@ -1,15 +1,20 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="light">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ZRA CEC — Support Dashboard</title>
+    <title>Skild AI — Support Dashboard</title>
     <meta name="color-scheme" content="light dark" />
-    <meta name="description" content="Live L1 support operations dashboard for the Skild Fetch fleet." />
+    <meta name="description" content="Live L1 support operations dashboard and client review for the Skild Fetch fleet." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;450;500;550;600;650;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/app/app.css" />
   </head>
   <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
+    <!-- boot.js gates on sign-in, loads the feed, then pulls in
+         core.js, charts.js, export.js and views.js in that order. -->
+    <script src="/app/boot.js"></script>
   </body>
 </html>
