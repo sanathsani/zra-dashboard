@@ -607,6 +607,47 @@ function usersSetPassword(email, name, role, password) {
              'Clear the password out of your script before you save it.');
 }
 
+/**
+ * Why sign-in is failing, answered without deploying anything.
+ *
+ * Two different faults produce the same symptom — api/auth.js gets a reply with
+ * no account list in it, finds nobody, and the browser says the password is
+ * wrong. This calls the live doGet exactly the way Vercel does and reports
+ * which fault it is.
+ */
+function feedDiagnose() {
+  var out = [];
+  var key = PropertiesService.getScriptProperties().getProperty('FEED_KEY');
+  out.push('FEED_KEY on this script : ' + (key ? 'set (' + key.length + ' chars, ends ' + key.slice(-6) + ')' : 'MISSING — run feedMakeKey()'));
+  out.push('accounts on Users tab  : ' + feedUsers().length);
+
+  var src = String(doGet);
+  var mine = src.indexOf('mode') !== -1 && src.indexOf('FEED_KEY') !== -1;
+  out.push('doGet in force         : ' + (mine ? "Feed.gs — correct" : "NOT Feed.gs — another file in this project also defines doGet and is winning"));
+
+  if (!mine) {
+    out.push('');
+    out.push('FIX: delete ZRA_WebApp.gs (or whichever other file defines doGet).');
+    out.push('     Apps Script keeps only one doGet and silently drops the rest,');
+    out.push('     so redeploying will not help until that file is gone.');
+    out.push('     That old doGet also served every ticket with no key at all.');
+  } else if (key) {
+    var reply = doGet({ parameter: { key: key, mode: 'users' } }).getContent();
+    var parsed = {};
+    try { parsed = JSON.parse(reply); } catch (e) {}
+    var n = parsed.users ? parsed.users.length : -1;
+    out.push('?mode=users answers    : ' + (n >= 0 ? n + ' account(s) — the code is right'
+                                                  : 'no user list (' + reply.slice(0, 80) + ')'));
+    if (n >= 0) {
+      out.push('');
+      out.push('The code here is correct, so the DEPLOYED version is old.');
+      out.push('FIX: Deploy > Manage deployments > pencil > Version: New version > Deploy.');
+      out.push('     Saving the file changes nothing until you do that.');
+    }
+  }
+  Logger.log(out.join('\n'));
+}
+
 /** Who can sign in. Prints no salts and no hashes. */
 function usersList() {
   var u = feedUsers();
