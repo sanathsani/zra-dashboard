@@ -1,11 +1,23 @@
 /* =========================================================================
-   export — one deck model, two renderers (PowerPoint and PDF)
-   Both are drawn natively: real text, real tables, real charts. No screenshots.
+   export — the deck IS the review
+
+   The PowerPoint and the PDF are photographs of what presentation mode puts
+   on the screen: the same sections, the same charts, the same commentary in
+   whatever the writer made of it. Drawing the deck a second time in native
+   shapes could never keep up with the page, and every change to the review
+   meant a second change here to match.
+
+   The drawn renderers are still below, and still used if a browser cannot
+   produce the images — better a plainer deck than a dead button.
    ========================================================================= */
 const CDN = {
   pptx: 'https://cdnjs.cloudflare.com/ajax/libs/pptxgenjs/3.12.0/pptxgen.bundle.js',
   jspdf: 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
+  shot: 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js',
 };
+
+/* 16:9 at a size that still reads when it is projected. */
+const SLIDE = { w: 1600, h: 900, scale: 2 };
 function loadScript(src) {
   return new Promise((ok, no) => {
     if ([...document.scripts].some(s => s.src === src)) return ok();
@@ -464,15 +476,120 @@ async function toPdf(slides, name) {
   doc.save(name + '.pdf');
 }
 
+/* ── the review, photographed ─────────────────────────────────────────── */
+
+/* One section to a slide, rendered off-screen at slide size with the same
+   markup and the same stylesheet presentation mode uses. Anything too tall
+   for a slide is scaled to fit rather than cropped. */
+async function captureSlides(step) {
+  await loadScript(CDN.shot);
+  const secs = reviewSections();
+  const bg = getComputedStyle(document.body).backgroundColor || '#0d1117';
+
+  const stage = document.createElement('div');
+  stage.className = 'present expo';
+  stage.style.cssText =
+    `position:fixed;left:-30000px;top:0;width:${SLIDE.w}px;height:${SLIDE.h}px;z-index:-1;`;
+  document.body.appendChild(stage);
+
+  const total = secs.length + 2;
+  const shots = [];
+  try {
+    stage.innerHTML = `<div class="present__inner expo__fit">
+      <div class="pcover">
+        <h1>Skild-Fetch &lt;&gt; Awign</h1>
+        <p class="pcover__period">${fmtDate(D.from)} – ${fmtDate(D.to)}</p>
+        <p class="pcover__line">Call Support Operations — Performance Review</p>
+        <div class="pcover__org">Awign Enterprises</div>
+      </div></div>`;
+    shots.push(await shoot(stage, bg));
+    step && step(1, total);
+
+    for (let i = 0; i < secs.length; i++) {
+      stage.innerHTML = `<div class="present__inner expo__fit">${secHTML(secs[i], i, false)}</div>`;
+      if (secs[i].mount) secs[i].mount(stage.querySelector(`[data-sec="${secs[i].id}"] .sec__body`));
+      await settle();
+      fitSlide(stage.firstElementChild);
+      shots.push(await shoot(stage, bg));
+      step && step(i + 2, total);
+    }
+
+    stage.innerHTML = `<div class="present__inner expo__fit">
+      <div class="present__end">AWIGN ENTERPRISES · END OF REVIEW</div></div>`;
+    shots.push(await shoot(stage, bg));
+    step && step(total, total);
+  } finally {
+    stage.remove();
+  }
+  return shots;
+}
+
+/* Two frames: one for the layout, one for the charts that animate in. */
+function settle() {
+  return new Promise(done =>
+    requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(done, 60))));
+}
+
+function fitSlide(inner) {
+  inner.style.transform = '';
+  const room = SLIDE.h - 8;
+  const tall = inner.scrollHeight;
+  if (tall > room) {
+    inner.style.transformOrigin = 'top center';
+    inner.style.transform = `scale(${(room / tall).toFixed(4)})`;
+  }
+}
+
+async function shoot(stage, bg) {
+  const canvas = await html2canvas(stage, {
+    width: SLIDE.w, height: SLIDE.h, windowWidth: SLIDE.w, windowHeight: SLIDE.h,
+    scale: SLIDE.scale, backgroundColor: bg, logging: false, useCORS: true,
+    /* Nothing you could click belongs in a deck. */
+    ignoreElements: el => !!(el.classList && el.classList.contains('note__bar'))
+      || !!(el.dataset && el.dataset.toggle),
+  });
+  return canvas.toDataURL('image/png');
+}
+
+async function shotsToPptx(shots, name) {
+  await loadScript(CDN.pptx);
+  const p = new PptxGenJS();
+  p.layout = 'LAYOUT_16x9';                       // 10in x 5.625in
+  shots.forEach(data => p.addSlide().addImage({ data, x: 0, y: 0, w: 10, h: 5.625 }));
+  await p.writeFile({ fileName: name + '.pptx' });
+}
+
+async function shotsToPdf(shots, name) {
+  await loadScript(CDN.jspdf);
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'px',
+                          format: [SLIDE.w, SLIDE.h], compress: true });
+  shots.forEach((data, i) => {
+    if (i) doc.addPage([SLIDE.w, SLIDE.h], 'landscape');
+    doc.addImage(data, 'PNG', 0, 0, SLIDE.w, SLIDE.h, undefined, 'FAST');
+  });
+  doc.save(name + '.pdf');
+}
+
 async function exportDeck(kind) {
   const name = `Skild-Fetch_Awign_Review_${D.from}_to_${D.to}`;
-  toast(`Building the ${kind === 'pptx' ? 'PowerPoint' : 'PDF'}…`);
+  const what = kind === 'pptx' ? 'PowerPoint' : 'PDF';
+  toast(`Building the ${what} — rendering the review…`);
   try {
-    const model = deckModel();
-    if (kind === 'pptx') await toPptx(model, name); else await toPdf(model, name);
-    toast(`${model.length} slides exported. Commentary you typed is carried into the deck.`);
+    const shots = await captureSlides((n, all) => toast(`Rendering slide ${n} of ${all}…`));
+    if (kind === 'pptx') await shotsToPptx(shots, name); else await shotsToPdf(shots, name);
+    toast(`${shots.length} slides — exactly what Present shows.`);
+    return;
   } catch (err) {
-    toast('Export needs the internet to pull the generator library. ' + (err && err.message ? err.message : ''));
+    /* Fall back to the drawn deck rather than leaving the button dead. */
+    try {
+      const model = deckModel();
+      if (kind === 'pptx') await toPptx(model, name); else await toPdf(model, name);
+      toast('The page could not be rendered, so the drawn deck was built instead.');
+    } catch (e2) {
+      toast('Export needs the internet to pull the generator library. ' +
+            ((e2 && e2.message) || (err && err.message) || ''));
+    }
   }
 }
 

@@ -596,3 +596,15 @@ table.tbl { font-size: 13px; }
 
 .present .note__bar { display: none; }
 @media print { .note__bar { display: none !important; } }
+
+/* ── the export stage ───────────────────────────────────────────────────
+   Off-screen, slide-sized, wearing the same clothes as presentation mode so
+   the photograph and the screen cannot drift apart. */
+.expo { overflow: hidden; display: flex; align-items: center; justify-content: center;
+  background: var(--bg); }
+.expo .present__inner { max-width: none; width: 100%; padding: 30px 52px; }
+.expo .sec { margin-bottom: 0; }
+.expo .sec, .expo .rhead { opacity: 1 !important; transform: none !important; animation: none !important; }
+.expo .pcover { min-height: 0; padding: 60px 0; }
+.expo .present__end { margin: 0; }
+.expo [data-toggle], .expo .note__bar { display: none !important; }
