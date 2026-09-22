@@ -6,15 +6,23 @@
 // feed is not fetched at all.
 //
 //   FEED_KEY  required — the token from feedMakeKey() on the Apps Script side
-//   FEED_URL  optional — only if you ever create a NEW deployment URL
+//   FEED_URL  required — the /exec URL of the Feed.gs deployment.
 import { verify } from './auth.js';
 
-const DEFAULT_URL =
-  'https://script.google.com/macros/s/AKfycby_sOH1E-FVyAlt7g5TY9iPMNNVR4DZAsu56V17WNaksNNv1cJOUhEeNDh7CTDkRQ0x/exec';
+// FEED_URL is required. There is deliberately no default: the URL that used to
+// be hard-coded here belonged to the old ZRA_WebApp deployment on "Report of
+// all sheets", which serves every ticket to anyone who has the link and knows
+// nothing about accounts. Falling back to it silently pointed the whole site at
+// the wrong spreadsheet and made a misconfiguration look like a bad password.
+
 
 export default async function handler(req, res) {
-  const APPS_URL = process.env.FEED_URL || DEFAULT_URL;
+  const APPS_URL = process.env.FEED_URL;
   const KEY = process.env.FEED_KEY;
+
+  if (!APPS_URL) {
+    return res.status(500).json({ error: 'FEED_URL is not set in the environment.' });
+  }
 
   if (!KEY) {
     return res.status(500).json({ error: 'FEED_KEY is not set in the environment.' });
