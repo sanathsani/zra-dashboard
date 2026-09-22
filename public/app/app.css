@@ -608,3 +608,31 @@ table.tbl { font-size: 13px; }
 .expo .pcover { min-height: 0; padding: 60px 0; }
 .expo .present__end { margin: 0; }
 .expo [data-toggle], .expo .note__bar { display: none !important; }
+
+/* ── what the export stage has to undo ──────────────────────────────────
+   html2canvas paints a flat picture: it has no viewport, so a sticky header
+   or footer is drawn wherever it is stuck rather than where it belongs, and
+   the cross-tab's grand-total row landed on top of the last customer. And it
+   does not implement writing-mode, so a label set vertical and then turned
+   180 degrees came out upside down and mirrored. Both are told to behave
+   only while a slide is being photographed. */
+.expo .xtab thead th, .expo .xtab tfoot td,
+.expo .tbl thead th, .expo .tbl tfoot td { position: static !important; }
+/* A scroll box shows only what fits; a slide has to show all of it. The
+   cross-tab was cut off at "Robot Hardware" with its totals column and its
+   grand-total row outside the frame. Let it spill, and let fitSlide scale
+   the whole section down until it fits the slide instead. */
+.expo .xtabwrap, .expo .tblwrap { overflow: visible !important; max-height: none !important; }
+/* and the card itself has to grow with the table it holds, or it clips at
+   its own rounded edge — which is where the totals column went. */
+.expo .sec { overflow: visible !important; }
+.expo .sec:has(.xtabwrap) { width: max-content; max-width: none; }
+/* The cell aligns its contents to the bottom, so the label's box sat at the
+   bottom and the rotation swung half of a long name out below the header and
+   over the first row. Centre the box and it turns inside its own lane. */
+.expo .xtab__rot { height: 200px; vertical-align: middle !important; padding: 0 !important; }
+.expo .xtab__rot > span {
+  writing-mode: horizontal-tb; transform: rotate(-90deg); transform-origin: center;
+  display: block; width: 190px; margin-left: -78px; text-align: right; line-height: 34px;
+  overflow: hidden; text-overflow: clip;
+}

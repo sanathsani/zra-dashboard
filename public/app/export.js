@@ -560,14 +560,25 @@ function settle() {
     requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(done, 60))));
 }
 
+/* A section taller than the slide is scaled down to fit. transform alone
+   only shrinks the PICTURE — the element keeps its full height, the stage
+   centres it on that height, and the top of the card ends up above the top
+   of the slide, which is how "Ticket issue category summary" lost its
+   heading. Pulling the extra height back with a negative margin shrinks the
+   box too, so the stage centres what you can actually see. */
 function fitSlide(inner) {
   inner.style.transform = '';
-  const room = SLIDE.h - 8;
-  const tall = inner.scrollHeight;
-  if (tall > room) {
-    inner.style.transformOrigin = 'top center';
-    inner.style.transform = `scale(${(room / tall).toFixed(4)})`;
-  }
+  inner.style.marginBottom = '';
+  const roomH = SLIDE.h - 8, roomW = SLIDE.w - 8;
+  const tall = inner.scrollHeight, wide = inner.scrollWidth;
+  const k = Math.min(1, roomH / tall, roomW / wide);
+  if (k >= 1) return;
+  /* Scale from the top LEFT and put it back in the middle by hand: scaling
+     about the centre uses the slide's width, not the content's, so a section
+     wider than the slide — the cross-tab — still hung off the right edge. */
+  inner.style.transformOrigin = 'top left';
+  inner.style.transform = `translateX(${Math.round((roomW - wide * k) / 2)}px) scale(${k.toFixed(4)})`;
+  inner.style.marginBottom = `${-Math.ceil(tall - tall * k)}px`;
 }
 
 async function shoot(stage, bg) {
