@@ -46,6 +46,23 @@ export function Stat({ label, value, sub, accent, alert, small, onClick, title }
   );
 }
 
+/* ─── Metric tile ──────────────────────────────────────────────────────
+   The same tile the Client Review uses, so a number means the same thing
+   and looks the same wherever it is read. Label, figure, one line under it. */
+export function Metric({ label, value, sub, alert, onClick, title }) {
+  const Tag = onClick ? "button" : "div";
+  return (
+    <Tag className="metric" onClick={onClick} type={onClick ? "button" : undefined} title={title}>
+      <span className="metric__label">
+        {label}
+        {alert && <span className="chip chip--critical" style={{ padding: "0 6px", fontSize: 11, marginLeft: 6 }}>!</span>}
+      </span>
+      <div className="metric__value">{value}</div>
+      {sub && <div className="metric__foot">{sub}</div>}
+    </Tag>
+  );
+}
+
 /* ─── Meter row (ranked list) ─────────────────────────────────────────── */
 export function RankRow({ label, color, value, max, pct, nameWidth = 190, onClick, dot = true }) {
   const t = useTheme();

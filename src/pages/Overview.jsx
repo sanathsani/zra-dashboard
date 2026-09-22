@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Card, Stat, RankRow } from "../components";
+import { Card, Stat, Metric, RankRow } from "../components";
 import { VolumeTrend, ResolutionBars, SplitBar, SplitLegend, LevelSplitBars } from "../charts";
 import { useTheme } from "../theme";
 import { FAMILIES } from "../faults";
@@ -21,7 +21,6 @@ export default function Overview({
 
   const mtdKey = today.slice(0, 7);
   const mtd = d.monthly.find(m => m.key === mtdKey);
-  const avg = d.daily.length ? d.daily.reduce((a, x) => a + x.total, 0) / d.daily.length : 0;
 
   // ── What needs attention ────────────────────────────────────────────────
   const ageOf = r => Math.max(0, Math.round(
@@ -64,19 +63,19 @@ export default function Overview({
       {/* ── Needs attention, before any totals ── */}
       <div className="kpihead"><h3>Needs attention</h3><span>{rangeLabel}</span></div>
       <div className="grid grid--4">
-        <Stat label="Unresolved" value={s.unresolved} accent={s.unresolved ? t.critical : t.good}
+        <Metric label="Unresolved tickets" value={s.unresolved}
           alert={s.unresolved > 15} sub={`${s.pending} pending · ${s.inProgress} in progress`}
           onClick={() => onDrill({ title: "Unresolved tickets", sub: rangeLabel, rows: d.unsolved })} />
-        <Stat label="Open 7+ days" value={stale.length} accent={stale.length ? t.critical : t.text3}
+        <Metric label="Open 7+ days" value={stale.length}
           alert={stale.length > 0}
           sub={stale.length ? `oldest ${Math.max(...stale.map(ageOf))} days` : "nothing ageing"}
           onClick={stale.length ? () => onDrill({
             title: "Open longer than 7 days", sub: `${stale.length} tickets`, rows: stale,
           }) : undefined} />
-        <Stat label="Repeat-fault robots" value={repeatRobots.length} accent={t.series[1]}
+        <Metric label="Repeat-fault robots" value={repeatRobots.length}
           sub={repeatRobots[0] ? `worst: ${repeatRobots[0].id} · ${repeatRobots[0].total}` : "none"}
           onClick={repeatRobots[0] ? () => onNavRobot(repeatRobots[0].id) : undefined} />
-        <Stat label="Leading fault" value={topFault ? topFault.count : 0} accent={t.series[2]}
+        <Metric label="Leading fault" value={topFault ? topFault.count : 0}
           sub={topFault ? topFault.label : "—"} title={topFault?.label}
           onClick={topFault ? () => onDrill({
             title: topFault.label,
@@ -94,23 +93,19 @@ export default function Overview({
       <div className="kpihead"><h3>Volume</h3><span>{rangeLabel}</span></div>
       <div className="grid grid--4">
         {[
-          ["Total", s.total.toLocaleString(), rangeLabel],
-          ["Resolved", s.resolved.toLocaleString(), `${s.rate}% resolve rate`],
+          ["Created tickets", s.total.toLocaleString(), rangeLabel],
+          ["Solved tickets", s.resolved.toLocaleString(), `${s.rate}% of created`],
           ["Handled at L1", s.l1.toLocaleString(), `${pct(s.l1, s.total)}% self-served`],
           ["Escalated to L3", s.l3.toLocaleString(), `${pct(s.l3, s.total)}% escalated`],
         ].map(([label, value, sub]) => (
-          <Stat key={label} label={label} value={value} sub={sub} accent={t.accent} />
+          <Metric key={label} label={label} value={value} sub={sub} />
         ))}
       </div>
-      <div className="grid grid--4">
-        <Stat small label={<>Today<span className="livedot" /></>}
-          value={todayRow.total} sub={fmtDate(today)} accent={t.text3} />
-        <Stat small label="Yesterday" value={ydayRow.total}
-          sub={fmtDate(addDays(today, -1))} accent={t.text3} />
-        <Stat small label="Month to date" value={mtd?.total ?? 0}
-          sub={fmtMonth(mtdKey, true)} accent={t.text3} />
-        <Stat small label="Daily average" value={avg.toFixed(1)}
-          sub={`over ${d.daily.length} days`} accent={t.text3} />
+      <div className="grid grid--3">
+        <Metric label={<>Today<span className="livedot" /></>}
+          value={todayRow.total} sub={fmtDate(today)} />
+        <Metric label="Yesterday" value={ydayRow.total} sub={fmtDate(addDays(today, -1))} />
+        <Metric label="Month to date" value={mtd?.total ?? 0} sub={fmtMonth(mtdKey, true)} />
       </div>
 
       {/* ── Trend + composition ── */}
