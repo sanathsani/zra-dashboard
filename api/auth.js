@@ -58,7 +58,24 @@ export default async function handler(req, res) {
     const text = await r.text();
     const j = JSON.parse(text.replace(/^\/\*[^*]*\*\/\s*/, ''));
     if (!j.ok) return res.status(502).json({ error: j.error || 'The user list could not be read.' });
-    users = j.users || [];
+
+    // An older deployment ignores ?mode=users and answers with the ticket feed
+    // instead. That still has ok:true, so without this check it looks exactly
+    // like a wrong password and sends people hunting for the wrong problem.
+    if (!Array.isArray(j.users)) {
+      return res.status(502).json({
+        error: 'The Apps Script web app is still running an older version, so it ' +
+               'has no account list yet. In Apps Script: Deploy \u2192 Manage deployments ' +
+               '\u2192 pencil \u2192 Version: New version \u2192 Deploy.',
+      });
+    }
+    users = j.users;
+    if (!users.length) {
+      return res.status(502).json({
+        error: 'No accounts exist yet. In the Apps Script editor run ' +
+               'usersSetPassword(email, name, role, password) once, then try again.',
+      });
+    }
   } catch (err) {
     return res.status(502).json({ error: 'Could not reach the sign-in service: ' + err.message });
   }

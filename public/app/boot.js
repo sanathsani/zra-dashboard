@@ -60,16 +60,17 @@ function screenError(title, detail, retry) {
   document.getElementById('again').addEventListener('click', retry);
 }
 
-function screenGate(msg) {
+function screenGate(msg, keep) {
   document.body.innerHTML = `
   <div class="gate">
     <form class="gate__card" id="signin" autocomplete="off">
       <div class="gate__mark">SA</div>
       <h1>Skild AI</h1>
       <p>Customer Excellence Center · support operations</p>
-      ${msg ? `<div class="gate__err">${esc0(msg)}</div>` : ''}
+      ${msg ? `<div class="gate__err" style="text-align:left;line-height:1.6">${esc0(msg)}</div>` : ''}
       <div class="field"><label for="em">Work email</label>
-        <input id="em" type="email" autocomplete="username" placeholder="you@awign.com"></div>
+        <input id="em" type="email" autocomplete="username" placeholder="you@awign.com"
+               value="${esc0((keep && keep.email) || '')}"></div>
       <div class="field"><label for="pw">Password</label>
         <input id="pw" type="password" autocomplete="current-password" placeholder="••••••••"></div>
       <button class="btn btn--primary" id="go" type="button"
@@ -86,7 +87,7 @@ function screenGate(msg) {
   const submit = async () => {
     const em = (document.getElementById('em').value || '').trim().toLowerCase();
     const pw = (document.getElementById('pw').value || '').trim();
-    if (!em || !pw) return screenGate('Enter both your email and your password.');
+    if (!em || !pw) return screenGate('Enter both your email and your password.', { email: em });
     go.disabled = true;
     go.textContent = 'Checking…';
     try {
@@ -96,11 +97,11 @@ function screenGate(msg) {
         body: JSON.stringify({ email: em, password: pw }),
       });
       const j = await r.json().catch(() => ({}));
-      if (!r.ok || !j.token) return screenGate(j.error || 'That email and password did not match.');
+      if (!r.ok || !j.token) return screenGate(j.error || 'That email and password did not match.', { email: em });
       AUTH.set(j);
       start();
     } catch (err) {
-      screenGate('Could not reach the sign-in service: ' + (err && err.message ? err.message : String(err)));
+      screenGate('Could not reach the sign-in service: ' + (err && err.message ? err.message : String(err)), { email: em });
     }
   };
 
