@@ -8,9 +8,25 @@
 import { useEffect, useRef } from "react";
 import { clearSession } from "../SignIn.jsx";
 
-export default function Review({ from, to, theme }) {
+export default function Review({ from, to, theme, data }) {
   const frame = useRef(null);
   const ready = useRef(false);
+  // The review used to fetch /api/data for itself, so opening this page pulled
+  // the whole feed through Apps Script a second time — half the wait, and half
+  // the timeouts. It asks for the copy already in memory instead.
+  const wants = useRef(false);
+  const latest = useRef({ data, from, to, theme });
+  latest.current = { data, from, to, theme };
+
+  function sendFeed() {
+    const { data: d, from: f, to: t, theme: th } = latest.current;
+    if (!d || !frame.current?.contentWindow) return false;
+    frame.current.contentWindow.postMessage(
+      { type: "skild:feed", data: d, range: { from: f, to: t }, theme: th === "dark" ? "dark" : "light" },
+      location.origin,
+    );
+    return true;
+  }
 
   // Only the first load carries the range in the URL; after that it is pushed,
   // so changing the date filter never costs another fetch of the feed.
@@ -24,11 +40,23 @@ export default function Review({ from, to, theme }) {
       if (e.data?.type === "skild:review" && e.data.signedOut) {
         clearSession();
         location.reload();
+        return;
+      }
+      // The iframe is up and asking for the feed. If it has not arrived yet,
+      // remember the request and send it the moment it does.
+      if (e.data?.type === "skild:review" && e.data.want === "feed") {
+        wants.current = true;
+        if (sendFeed()) wants.current = false;
       }
     }
     addEventListener("message", onMessage);
     return () => removeEventListener("message", onMessage);
   }, []);
+
+  // Data arrived (or was refreshed) after the iframe asked for it.
+  useEffect(() => {
+    if (wants.current && sendFeed()) wants.current = false;
+  }, [data]);
 
   useEffect(() => {
     if (!ready.current) return;
@@ -43,7 +71,7 @@ export default function Review({ from, to, theme }) {
       ref={frame}
       title="Client Review"
       src={src}
-      onLoad={() => { ready.current = true; }}
+      onLoad={() => { ready.current = true; sendFeed(); }}
       allow="fullscreen"
       allowFullScreen
       style={{ display: "block", width: "100%", border: 0, background: "transparent" }}

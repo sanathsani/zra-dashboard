@@ -42,7 +42,84 @@
  * ════════════════════════════════════════════════════════════════════════════
  */
 
-var FEED_VERSION = '1.0.0';
+var FEED_VERSION = '1.1.0';
+
+/**
+ * THE CACHE (1.1.0)
+ *
+ * doGet used to rebuild the whole payload on every request: read 1,500 ticket
+ * rows, the RCA sheet and the SLA Clocks tab, then build every rollup. That is
+ * ten to twenty seconds, and Vercel gives a function ten. When it ran over,
+ * Vercel answered with its own HTML error page and the browser said
+ * "Unexpected token '<', "<!DOCTYPE"... is not valid JSON" — the dashboard
+ * was not broken, it was timing out.
+ *
+ * The payload only changes when a sync runs, so it is built once, stored in
+ * the script cache in 80KB pieces, and served from there. syncTickets (every
+ * 15 min) and syncSla (hourly) call feedWarm() when they finish, so the cache
+ * is already warm before anyone opens the page. ?fresh=1 bypasses it.
+ *
+ * Every write is stamped and the chunk keys carry the stamp, so a reader can
+ * never assemble half of one payload and half of the next.
+ */
+var FEED_CACHE_KEY  = 'skild_feed_v1';
+var FEED_CHUNK      = 80000;        // characters — the limit is 100KB a key
+var FEED_CACHE_SECS = 21600;        // 6 hours, but a sync refreshes it sooner
+
+function feedCachedJson(fresh) {
+  var cache = CacheService.getScriptCache();
+  if (!fresh) {
+    var hit = feedCacheRead(cache);
+    if (hit) return hit;
+  }
+  return feedCacheWrite(cache,
+    JSON.stringify({ ok: true, role: 'internal', data: feedPayload() }));
+}
+
+function feedCacheRead(cache) {
+  var head = cache.get(FEED_CACHE_KEY);
+  if (!head) return null;
+  var bits = String(head).split('|');
+  var stamp = bits[0], n = Number(bits[1]);
+  if (!stamp || !n || n > 80) return null;
+
+  var keys = [];
+  for (var i = 0; i < n; i++) keys.push(FEED_CACHE_KEY + '_' + stamp + '_' + i);
+  var got = cache.getAll(keys), out = '';
+  for (var j = 0; j < n; j++) {
+    var part = got[keys[j]];
+    if (part == null) return null;          // a piece expired: build it again
+    out += part;
+  }
+  return out;
+}
+
+function feedCacheWrite(cache, json) {
+  var stamp = String(new Date().getTime());
+  var n = Math.ceil(json.length / FEED_CHUNK);
+  if (n > 80) return json;                  // too big to cache; still serve it
+
+  var parts = {};
+  for (var i = 0; i < n; i++) {
+    parts[FEED_CACHE_KEY + '_' + stamp + '_' + i] = json.substr(i * FEED_CHUNK, FEED_CHUNK);
+  }
+  try {
+    cache.putAll(parts, FEED_CACHE_SECS);
+    cache.put(FEED_CACHE_KEY, stamp + '|' + n, FEED_CACHE_SECS);   // last, so it is never half-written
+  } catch (err) {
+    Logger.log('Feed cache not written (' + err.message + ') — serving live.');
+  }
+  return json;
+}
+
+/** Rebuilds the cached payload. Called by syncTickets and syncSla. */
+function feedWarm() {
+  var t = new Date().getTime();
+  var json = feedCachedJson(true);
+  Logger.log('Feed cache: ' + Math.round(json.length / 1024) + ' KB in ' +
+             ((new Date().getTime() - t) / 1000).toFixed(1) + 's');
+  return json.length;
+}
 
 /**
  * Every spelling of a customer that has appeared in column C, mapped to the
@@ -112,7 +189,9 @@ function doGet(e) {
   }
 
   try {
-    return feedJson({ ok: true, role: 'internal', data: feedPayload() });
+    var fresh = String((e && e.parameter && e.parameter.fresh) || '') === '1';
+    return ContentService.createTextOutput(feedCachedJson(fresh))
+                         .setMimeType(ContentService.MimeType.JSON);
   } catch (err) {
     return feedJson({ ok: false, error: String((err && err.message) || err) });
   }
@@ -245,7 +324,6 @@ function feedRows() {
       status:         status,
       type:           String(r[COL.TYPE - 1] || '').trim() || 'Unknown',
       issue:          issue.substring(0, 300),
-      remarks:        String(r[COL.REMARKS - 1] || '').trim().substring(0, 500),
       response:       feedNum(r[COL.RESPONSE - 1]),
       restoration:    feedNum(r[COL.RESTORATION - 1]),
       robot_id:       feedRobotId(issue),

@@ -381,6 +381,7 @@ function ticketSync(apply) {
     }
     if (!apply) lines.push('', 'Run syncTickets() to apply. It backs the tab up first.');
     Logger.log(lines.join('\n'));
+    if (apply) warmFeed();
   } finally {
     try { lock.releaseLock(); } catch (ignore) {}
   }
@@ -746,7 +747,19 @@ function syncSla() {
   writeRca(ss, rows);
   writeClocks(ss, clockRows(state, zd.byId));
   Logger.log(slaSummary(rows, zd).join('\n'));
+  warmFeed();
   return rows;
+}
+
+/**
+ * Rebuilds the dashboard's cached payload, so the web app never has to build
+ * it while somebody is waiting for the page. Feed.gs owns the cache; if that
+ * file is not in this project, there is nothing to warm and nothing to fail.
+ */
+function warmFeed() {
+  if (typeof feedWarm !== 'function') return;
+  try { feedWarm(); }
+  catch (err) { Logger.log('Feed cache not rebuilt (' + err.message + ') — the site will build it on the next request.'); }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

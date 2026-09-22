@@ -35,9 +35,18 @@ export default async function handler(req, res) {
     return res.status(401).json({ error: 'Sign in to view this data.' });
   }
 
+  // Apps Script serves the payload from its own cache and is normally quick,
+  // but a cold cache has to rebuild it from three sheets. Wait up to 45s and
+  // answer with JSON either way: when this function is killed by the platform
+  // instead, the browser receives Vercel's HTML error page and every client
+  // chokes on "Unexpected token '<'".
+  const stop = new AbortController();
+  const bell = setTimeout(() => stop.abort(), 45000);
+
   try {
     const response = await fetch(`${APPS_URL}?key=${encodeURIComponent(KEY)}`, {
       redirect: 'follow',
+      signal: stop.signal,
     });
     const text = await response.text();
     // Apps Script sometimes prefixes the payload with a /*O_o*/ comment.
@@ -50,6 +59,13 @@ export default async function handler(req, res) {
     res.setHeader('Cache-Control', 'no-store, max-age=0');
     res.status(200).json(data);
   } catch (err) {
+    if (err.name === 'AbortError') {
+      return res.status(504).json({
+        error: 'The ticket feed took longer than 45 seconds. It is rebuilding its cache — try again in a moment.',
+      });
+    }
     res.status(502).json({ error: err.message });
+  } finally {
+    clearTimeout(bell);
   }
 }

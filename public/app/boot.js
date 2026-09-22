@@ -121,6 +121,61 @@ function toFeed(d) {
   };
 }
 
+/* ── getting the feed ─────────────────────────────────────────────────── */
+
+/* The dashboard around this iframe has already loaded the feed. Ask it for a
+   copy instead of pulling the same payload through Apps Script a second time:
+   that second fetch was half the waiting and half the timeouts. Returns null
+   if this page was opened on its own, or if the dashboard cannot answer. */
+function askDashboard(ms) {
+  return new Promise(resolve => {
+    if (parent === window) return resolve(null);
+    let settled = false;
+    const finish = v => {
+      if (settled) return;
+      settled = true;
+      removeEventListener('message', onMsg);
+      resolve(v);
+    };
+    function onMsg(e) {
+      if (e.source !== parent || e.origin !== location.origin) return;
+      if (!e.data || e.data.type !== 'skild:feed' || !e.data.data) return;
+      finish(e.data);
+    }
+    addEventListener('message', onMsg);
+    const ask = () => parent.postMessage({ type: 'skild:review', want: 'feed' }, location.origin);
+    ask();
+    // This frame can start before the dashboard has attached its listener, so
+    // ask a few more times before falling back to a fetch of our own.
+    const again = setInterval(() => (settled ? clearInterval(again) : ask()), 600);
+    setTimeout(() => { clearInterval(again); finish(null); }, ms);
+  });
+}
+
+/* The fallback path, for /review.html opened directly. Reads the body as text
+   first: when the serverless function times out, Vercel answers with an HTML
+   error page, and JSON.parse on that produced the "Unexpected token '<'"
+   message that told nobody anything. */
+async function fetchFeed(token) {
+  const r = await fetch('/api/data', { headers: { Authorization: 'Bearer ' + token } });
+  if (r.status === 401) return { signedOut: true };
+
+  const text = await r.text();
+  if (text.trim().charAt(0) === '<') {
+    throw new Error('The ticket feed took too long to answer. It is usually ready a few seconds later.');
+  }
+  let body;
+  try {
+    body = JSON.parse(text.replace(/^\/\*[^*]*\*\/\s*/, ''));
+  } catch {
+    throw new Error('The ticket feed sent something that was not data (HTTP ' + r.status + ').');
+  }
+  if (!r.ok || !body || !body.data) {
+    throw new Error((body && body.error) || ('The ticket feed answered HTTP ' + r.status + '.'));
+  }
+  return body;
+}
+
 /* ── start ────────────────────────────────────────────────────────────── */
 
 const APP_FILES = ['core.js', 'charts.js', 'export.js', 'views.js'];
@@ -147,29 +202,45 @@ function loadScript(src) {
   }
 
   screenBusy('Loading the latest tickets\u2026');
-  let payload;
-  try {
-    const r = await fetch('/api/data', { headers: { Authorization: 'Bearer ' + s.token } });
-    if (r.status === 401) {
-      parent.postMessage({ type: 'skild:review', signedOut: true }, location.origin);
-      return screenError('Your session has expired.');
+
+  let data = null, range = null;
+  const handed = await askDashboard(12000);
+  if (handed) {
+    data = handed.data;
+    range = handed.range || null;
+    if (handed.theme) document.documentElement.dataset.theme = handed.theme;
+  } else {
+    // Opened on its own, or the dashboard had nothing to give. Fetch it, and
+    // try once more before giving up — a cold Apps Script cache is slow only
+    // the first time.
+    for (let attempt = 0; attempt < 2 && !data; attempt++) {
+      try {
+        const body = await fetchFeed(s.token);
+        if (body.signedOut) {
+          parent.postMessage({ type: 'skild:review', signedOut: true }, location.origin);
+          return screenError('Your session has expired.');
+        }
+        data = body.data;
+      } catch (err) {
+        if (attempt) return screenError(err && err.message ? err.message : String(err));
+        screenBusy('The feed is taking a moment \u2014 trying again\u2026');
+        await new Promise(r => setTimeout(r, 2500));
+      }
     }
-    payload = await r.json();
-    if (!r.ok || !payload || !payload.data) {
-      return screenError((payload && payload.error) || ('The ticket feed answered HTTP ' + r.status + '.'));
-    }
-  } catch (err) {
-    return screenError(err && err.message ? err.message : String(err));
   }
 
-  window.__FEED = toFeed(payload.data);
+  window.__FEED = toFeed(data);
   window.__USER = s.user;
   if (!window.__FEED.tickets.length) {
     return screenError('The feed returned no ticket rows.');
   }
 
   // The range the dashboard is showing, so the first paint already matches it.
-  window.__RANGE = (q.get('from') && q.get('to')) ? { from: q.get('from'), to: q.get('to') } : null;
+  // The dashboard's own answer wins: after a reload of this frame the URL still
+  // carries the range it was first opened with, which is why the date filter
+  // sometimes snapped back to an old window.
+  window.__RANGE = range ||
+    ((q.get('from') && q.get('to')) ? { from: q.get('from'), to: q.get('to') } : null);
 
   document.body.innerHTML = '<div id="app-root"></div>';
   try {

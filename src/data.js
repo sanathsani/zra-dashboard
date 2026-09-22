@@ -25,10 +25,53 @@ function authHeader() {
 }
 const REFRESH_MS = 5 * 60 * 1000;
 
+/* The last payload that loaded, kept for this tab only. Reopening or
+   reloading the dashboard paints from it at once and refreshes behind the
+   scenes, instead of showing a spinner while Apps Script answers. It never
+   leaves the tab and it is replaced by every successful fetch. */
+const FEED_CACHE = "skild.feed.v1";
+
+function readCachedFeed() {
+  try {
+    const c = JSON.parse(sessionStorage.getItem(FEED_CACHE) || "null");
+    return c && c.data && c.data.rows ? c : null;
+  } catch { return null; }
+}
+
+function writeCachedFeed(payload) {
+  try { sessionStorage.setItem(FEED_CACHE, JSON.stringify(payload)); }
+  catch { /* private window, or out of room — the dashboard works without it */ }
+}
+
+/* One request, read as text. A serverless function that runs out of time
+   answers with an HTML page, and JSON.parse on that threw "Unexpected token
+   '<'" at the user — a message about nothing they can act on. */
+async function requestFeed(headers) {
+  const res = await fetch(WEB_APP_URL, { method: "GET", redirect: "follow", headers });
+  if (res.status === 401) return { signedOut: true };
+
+  const text = await res.text();
+  if (text.trim().charAt(0) === "<") {
+    throw new Error("The ticket feed took too long to answer. Trying again shortly.");
+  }
+  let json;
+  try {
+    json = JSON.parse(text.replace(/^\/\*[^*]*\*\/\s*/, ""));
+  } catch {
+    throw new Error("The ticket feed sent something that was not data (HTTP " + res.status + ").");
+  }
+  if (json.error) throw new Error(json.error);
+  if (!res.ok) throw new Error("HTTP " + res.status);
+  return json;
+}
+
 // ─── Fetch ──────────────────────────────────────────────────────────────────
 export function useLiveData() {
-  const [state, setState] = useState({
-    loading: true, error: null, data: null, role: null, ts: null, refreshing: false,
+  const [state, setState] = useState(() => {
+    const c = readCachedFeed();
+    return c
+      ? { loading: false, error: null, data: c.data, role: c.role, ts: c.ts, refreshing: true }
+      : { loading: true, error: null, data: null, role: null, ts: null, refreshing: false };
   });
 
   useEffect(() => {
@@ -37,29 +80,31 @@ export function useLiveData() {
     async function fetchData(isRefresh) {
       if (isRefresh) setState(s => ({ ...s, refreshing: true }));
       try {
-        const res = await fetch(WEB_APP_URL, {
-          method: "GET",
-          redirect: "follow",
-          headers: authHeader(),
-        });
+        // Two goes. A cold Apps Script cache is slow only the first time, and
+        // one slow answer should not put an error card in front of anyone.
+        let json;
+        try {
+          json = await requestFeed(authHeader());
+        } catch (first) {
+          if (cancelled) return;
+          await new Promise(r => setTimeout(r, 3000));
+          if (cancelled) return;
+          json = await requestFeed(authHeader()).catch(() => { throw first; });
+        }
         // The session lasts 12 hours. When it lapses, drop it and show the
         // sign-in card again rather than leaving a dashboard that cannot refresh.
-        if (res.status === 401) {
+        if (json.signedOut) {
           clearSession();
           location.reload();
           return;
         }
-        if (!res.ok) throw new Error("HTTP " + res.status);
-        const text = await res.text();
-        // Apps Script sometimes prefixes the payload with a /*O_o*/ comment.
-        const json = JSON.parse(text.replace(/^\/\*[^*]*\*\/\s*/, ""));
-        if (json.error) throw new Error(json.error);
         if (cancelled) return;
-        setState({
-          loading: false, refreshing: false, error: null,
+        const next = {
           data: json.data, role: json.role || "internal",
           ts: json.data?.meta?.generated || null,
-        });
+        };
+        writeCachedFeed(next);
+        setState({ loading: false, refreshing: false, error: null, ...next });
       } catch (err) {
         if (cancelled) return;
         // On a failed refresh keep the data already on screen rather than

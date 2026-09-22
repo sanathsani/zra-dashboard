@@ -230,7 +230,7 @@ function Dashboard({ session }) {
               onBack={() => setSelRobot(null)} onDrill={openDrill} />
           )}
           {view === "review" && (
-            <Review from={from} to={to} theme={t.mode} />
+            <Review from={from} to={to} theme={t.mode} data={data} />
           )}
           {view === "anomalies" && (
             <Anomalies d={d} colorForCategory={colorForCategory} onOpenRobot={openRobot} />
