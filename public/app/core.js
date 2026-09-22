@@ -86,10 +86,10 @@ const STABLE = (() => {
   return { owners: tally(C.owner), cats: tally(C.cat), customers: tally(C.cust) };
 })();
 
-/* SLA breach rows keyed by ticket id — the sheet holds breaches only. */
+/* SLA breach rows keyed by ticket id — the sheet holds breaches only.
+   Which metric breached inside a given window comes from FEED.clocks, in
+   derive(); the sheet's own breach label covers the ticket's whole life. */
 const SLA_BY_ID = FEED.sla.reduce((a, r) => (a[r.id] = r, a), {});
-const isFR  = r => /first response|response &/i.test(r.breach);
-const isRES = r => /resolution/i.test(r.breach);
 
 /* Names that must never appear in a customer list on screen or in a deck —
    a bucket label invites questions it cannot answer. The tickets still count
@@ -140,10 +140,14 @@ function derive(from, to) {
   const resCount = RES_BUCKETS.map(() => 0);
   const frCount = FR_BUCKETS.map(() => 0);
   let frNone = 0, frKnown = 0;
-  /* Aging is measured at the END OF THE PERIOD, not today. A review of
-     24 Aug – 6 Sep must show what was aging on 6 Sep, not how old those
-     tickets have since become. */
-  const today = to;
+  /* Aging is measured TODAY, because that is what Zendesk does: its date
+     filter picks WHICH tickets are in the report, but the age of a ticket
+     still open is always counted up to the current date. Measuring at the
+     period end put the same 14 tickets two buckets lower than the Zendesk
+     screen — 1–3 days here against 3–5 days there, two days after the
+     period closed. `ageAt` is reported so the card can say which day. */
+  const ageAt = new Date().toLocaleDateString('en-CA');
+  const today = ageAt > to ? ageAt : to;
 
   for (const t of rows) {
     const st = t[C.status], isL3 = t[C.lvl] === 1, open = st !== ST.SOLVED;
@@ -284,16 +288,47 @@ function derive(from, to) {
     }
   }
 
-  /* ── SLA ───────────────────────────────────────────────────────────── */
-  const ids = new Set(rows.map(t => t[C.id]));
-  const lvlById = {}, autoById = {}, catById = {};
-  rows.forEach(t => { lvlById[t[C.id]] = t[C.lvl]; autoById[t[C.id]] = t[C.auto]; catById[t[C.id]] = DICT.cats[t[C.cat]]; });
+  /* ── SLA, counted the way Zendesk counts it ──────────────────────────────
+     Zendesk's SLA reports do not ask when a ticket was RAISED. They ask when
+     its SLA clock FINISHED, and file the target under that date. #1287 came
+     in on 6 Sep and breached on 8 Sep: Explore shows it in 7–20 Sep, and
+     filtering on the created date hid it here.
 
-  const breaches = FEED.sla.filter(r => ids.has(r.id)).map(r => ({
-    ...r, lvl: lvlById[r.id] === 1 ? 'L3' : 'L1', auto: !!autoById[r.id],
-    cat: r.category || catById[r.id] || '—',
-  }));
-  const fr = breaches.filter(isFR), res = breaches.filter(isRES);
+     So the window is applied to the clocks, and the rates divide by the
+     clocks that finished inside it — Zendesk's own denominator — not by the
+     tickets raised inside it. The level and auto-alert flags are read from
+     the WHOLE ticket table, because a ticket that breaches inside the window
+     was often raised outside it.
+
+     Only finished clocks reach the feed (Explore: "SLA metric status =
+     Completed"), so a ticket sitting past its target is not yet a breach on
+     either screen. */
+  const lvlById = {}, autoById = {}, catById = {};
+  FEED.tickets.forEach(t => {
+    lvlById[t[C.id]] = t[C.lvl]; autoById[t[C.id]] = t[C.auto];
+    catById[t[C.id]] = DICT.cats[t[C.cat]];
+  });
+
+  const inWindow = s => { const d = dayKey(s); return !!d && d >= from && d <= to; };
+  const frClocks = [], resClocks = [], frBreached = new Set(), resBreached = new Set();
+  for (const c of (FEED.clocks || [])) {
+    if (c.fr && inWindow(c.frAt))   { frClocks.push(c);  if (c.fr  === 'B') frBreached.add(c.id); }
+    if (c.res && inWindow(c.resAt)) { resClocks.push(c); if (c.res === 'B') resBreached.add(c.id); }
+  }
+
+  const breaches = FEED.sla
+    .filter(r => frBreached.has(r.id) || resBreached.has(r.id))
+    .map(r => ({
+      ...r, lvl: lvlById[r.id] === 1 ? 'L3' : 'L1', auto: !!autoById[r.id],
+      cat: r.category || catById[r.id] || '—',
+      /* What it breached IN THIS WINDOW. The sheet's own label covers the
+         ticket's whole life, so a July response breach would otherwise be
+         read back into a September review. */
+      breach: frBreached.has(r.id) && resBreached.has(r.id) ? 'Response & Resolution SLA'
+            : frBreached.has(r.id) ? 'First Response SLA' : 'Resolution SLA',
+    }));
+  const fr = breaches.filter(b => frBreached.has(b.id));
+  const res = breaches.filter(b => resBreached.has(b.id));
   const byRca = new Map();
   breaches.forEach(b => {
     const k = b.cat || 'Unclassified';
@@ -301,9 +336,11 @@ function derive(from, to) {
   });
   const sla = {
     total,
-    fr: fr.length, res: res.length, both: breaches.filter(b => isFR(b) && isRES(b)).length,
-    frRate: total ? 100 - pct(fr.length, total) : 100,
-    resRate: total ? 100 - pct(res.length, total) : 100,
+    frClocks: frClocks.length, resClocks: resClocks.length,
+    fr: fr.length, res: res.length,
+    both: breaches.filter(b => frBreached.has(b.id) && resBreached.has(b.id)).length,
+    frRate: 100 - pct(fr.length, frClocks.length),
+    resRate: 100 - pct(res.length, resClocks.length),
     frCust: fr.filter(b => !b.auto).length, frAuto: fr.filter(b => b.auto).length,
     resL1Cust: res.filter(b => b.lvl === 'L1' && !b.auto).length,
     resL3Cust: res.filter(b => b.lvl === 'L3' && !b.auto).length,
@@ -327,6 +364,7 @@ function derive(from, to) {
     },
     daily, monthly, byHour, peak, shifts,
     owners, dormant, cats, customers, customersShown, robots, robotsShown,
+    ageAt: today,
     age: AGE_BUCKETS.map((b, i) => ({ ...b, ...ageCount[i] })),
     resTime: RES_BUCKETS.map((b, i) => ({ ...b, count: resCount[i] })),
     brackets: {

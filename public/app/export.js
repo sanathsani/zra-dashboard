@@ -149,7 +149,7 @@ function deckModel() {
 
   if (s.open) slides.push({
     title: 'Unresolved tickets aging distribution',
-    sub: `${num(s.open)} open · age measured at ${fmtDate(D.to)}`,
+    sub: `${num(s.open)} open · age measured at ${fmtDate(D.ageAt)}`,
     table: {
       head: ['Age bracket', 'Overall', 'L1 tickets', 'L3 engineering queue'],
       w: [0.34, 0.22, 0.22, 0.22], align: ['l', 'r', 'r', 'r'],
@@ -168,9 +168,9 @@ function deckModel() {
   slides.push({
     title: 'SLA compliance', sub: period,
     kpis: [
-      { label: 'First Response SLA Compliance %', value: pct1(sla.total - sla.fr, sla.total) + '%' },
+      { label: 'First Response SLA Compliance %', value: pct1(sla.frClocks - sla.fr, sla.frClocks) + '%' },
       { label: 'First Response SLA breached tickets', value: num(sla.fr) },
-      { label: 'Resolution SLA Compliance %', value: pct1(sla.total - sla.res, sla.total) + '%' },
+      { label: 'Resolution SLA Compliance %', value: pct1(sla.resClocks - sla.res, sla.resClocks) + '%' },
       { label: 'Resolution SLA breached tickets - L1', value: num(resL1) },
       { label: 'Resolution SLA breached tickets - L3', value: num(resL3) },
     ],

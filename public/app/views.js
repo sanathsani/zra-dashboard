@@ -539,7 +539,7 @@ function reviewSections() {
   });
 
   if (s.open) out.push({
-    id: 's8', title: 'Unresolved tickets aging distribution', sub: `Age measured at ${fmtDate(D.to)}`,
+    id: 's8', title: 'Unresolved tickets aging distribution', sub: `Age measured at ${fmtDate(D.ageAt)}`,
     tag: `${num(s.open)} open`,
     ph: 'Why the oldest tickets are still open and what is being done about them.',
     html: `<div style="${cols(250)}">
@@ -587,13 +587,14 @@ function reviewSections() {
 
   /* 10 — the Explore SLA panel, box for box */
   out.push({
-    id: 's10', title: 'SLA compliance', sub: period, tag: `${num(sla.total)} tickets in scope`,
+    id: 's10', title: 'SLA compliance', sub: period,
+    tag: `${num(sla.frClocks)} response · ${num(sla.resClocks)} resolution clocks finished`,
     ph: 'The SLA read in your words — targets in force, and anything the raw compliance number does not explain.',
     html: `
       <div class="mgrid" style="margin-bottom:16px">
-        ${mbox('First Response SLA Compliance %', pct1(sla.total - sla.fr, sla.total) + '%')}
+        ${mbox('First Response SLA Compliance %', pct1(sla.frClocks - sla.fr, sla.frClocks) + '%')}
         ${mbox('First Response SLA breached tickets', num(sla.fr))}
-        ${mbox('Resolution SLA Compliance %', pct1(sla.total - sla.res, sla.total) + '%')}
+        ${mbox('Resolution SLA Compliance %', pct1(sla.resClocks - sla.res, sla.resClocks) + '%')}
         ${mbox('Resolution SLA breached tickets - L1', num(resL1))}
         ${mbox('Resolution SLA breached tickets - L3', num(resL3))}
       </div>

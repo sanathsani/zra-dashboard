@@ -447,6 +447,7 @@ function feedPayload() {
     anomalies: anomalies,
     unsolved:  unsolved,
     sla:       feedSla(),
+    clocks:    feedClocks(),          // SkildConsole.gs — the SLA Clocks tab
     roster:    feedRoster(),
     rows:      rows
   };

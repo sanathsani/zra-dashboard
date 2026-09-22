@@ -1,11 +1,48 @@
 /**
  * ════════════════════════════════════════════════════════════════════════════
- * SKILD AI — CEC CONSOLE          file: SkildConsole.gs        version 21.1.0
+ * SKILD AI — CEC CONSOLE          file: SkildConsole.gs        version 21.3.0
  * ════════════════════════════════════════════════════════════════════════════
  *
  * Lives inside "Shift Data Tracking". Pulls Zendesk into "All tickets Info"
- * and rebuilds "SLA Breach - RCA". This is the file that used to run in
- * "Report of all sheets" as Sky Console — retargeted, plus two new columns.
+ * and rebuilds "SLA Breach - RCA".
+ *
+ * WHAT 21.3.0 ADDS — "SLA Clocks", so the dashboard can count SLA the way
+ * Zendesk counts it.
+ *   Zendesk's SLA reports do not ask when a ticket was RAISED. They ask when
+ *   its SLA clock FINISHED. #1287 was raised on 6 Sep and breached on 8 Sep:
+ *   Explore counts it in 7-20 Sep, the dashboard filtered on the created date
+ *   and showed nothing. Same data, different question.
+ *
+ *   So syncSla() now also writes a hidden tab, "SLA Clocks": one row per
+ *   ticket holding, for each metric, whether the clock was Met or Breached
+ *   and the minute it finished — the breach event's own timestamp, which is
+ *   the "SLA update - Timestamp" column in an Explore drill-in. Feed.gs sends
+ *   it on, and the dashboard counts both the breaches AND the denominator
+ *   from it, so the compliance % matches too (Zendesk divides by the clocks
+ *   that finished in the window, not by the tickets raised in it).
+ *
+ *   Only COMPLETED clocks are written, which is Explore's "SLA metric status
+ *   = Completed". A ticket still running past its target is not yet a breach
+ *   on either screen.
+ *
+ *   slaCheckWindow() prints the five Explore tiles for a date range so the
+ *   two screens can be compared without deploying anything. Edit the two
+ *   dates in SLA_CHECK_RANGE and press Run.
+ *
+ * WHAT 21.2.0 FIXED
+ *   zdSlaEvents ended the event stream as soon as a page held fewer than 100
+ *   events. Zendesk pages that export by TIME, not by count, so a quiet
+ *   stretch returns a short page in the MIDDLE of the stream and everything
+ *   after it was never read. That is why "SLA Breach - RCA" stopped at #1287
+ *   on 6 September while the ticket log ran on to 22 September. The stream now
+ *   ends only where Zendesk says it ends, and the run logs how many pages it
+ *   read and the timestamp of the newest event, so a short read is visible at
+ *   a glance. slaEventProbe() walks the same export page by page if it ever
+ *   looks wrong again.
+ *
+ *   zdGet retries a reply that arrives cut off mid-JSON instead of throwing
+ *   "Unterminated string in JSON", and the ticket export asks for 500 per page
+ *   rather than 1000, so there is less to lose on a broken transfer.
  *
  * THE TWO COLUMNS, DEFINED ONCE
  *   L  First Response (min)  = Zendesk reply_time_in_minutes, BUSINESS minutes.
@@ -29,8 +66,7 @@
  * DELIBERATELY NOT IN THIS FILE
  *   doGet / doPost and the ZRA-extension backend (createOrUpdate, checkAccess,
  *   getTicket, findSimilar). Apps Script allows ONE doGet per project and
- *   ZRA_WebApp.gs already has one — they would silently overwrite each other.
- *   Those come back in step 3, when Feed.gs replaces ZRA_WebApp.gs.
+ *   Feed.gs owns it.
  *
  * RUN ORDER, FIRST TIME
  *   1. Script Properties: ZD_SUBDOMAIN, ZD_EMAIL, ZD_TOKEN
@@ -42,9 +78,13 @@
  */
 
 // ── CONFIG ──────────────────────────────────────────────────────────────────
-var SKILD_VERSION = '21.0.0';
+var SKILD_VERSION = '21.3.0';
 var TICKETS_SHEET = 'All tickets Info';
 var RCA_SHEET     = 'SLA Breach - RCA';
+var CLOCK_SHEET   = 'SLA Clocks';        // written by syncSla, hidden, read by the feed
+
+/** The range slaCheckWindow() reports on. Edit these two dates, then Run. */
+var SLA_CHECK_RANGE = ['2026-09-07', '2026-09-20'];
 
 /** Blank when the script is bound to the sheet; else set a SHEET_ID property. */
 var SHEET_ID = '';
@@ -392,9 +432,9 @@ function learnCustomers(grid, zd) {
 
 /**
  * The dropdown lists the sheet enforces, by column. Writing anything else makes
- * the whole write fail — cell I3 on the first v15 run, H669 on the next, where
- * Zendesk said "pending" and the list only allows "Pending". So every value is
- * matched against the list first and written in the list's own spelling.
+ * the whole write fail — cell I3 on one run, H669 on the next, where Zendesk
+ * said "pending" and the list only allows "Pending". So every value is matched
+ * against the list first and written in the list's own spelling.
  */
 function columnRules(sheet, n) {
   var rules = {};
@@ -505,18 +545,18 @@ function normCategory(v) {
 }
 
 /**
- * Every ticket, with the fields both tabs need. Two calls for the tickets
+ * Every ticket, with the fields both tabs need. Three calls for the tickets
  * (users, organizations and metric sets ride along), plus one each for custom
  * statuses and ticket fields.
  */
 function zdTickets() {
   var fields = zdFields();
   var labels = zdCustomStatuses();
-  var url = '/api/v2/incremental/tickets/cursor.json?start_time=0&per_page=1000' +
+  var url = '/api/v2/incremental/tickets/cursor.json?start_time=0&per_page=500' +
             '&include=users,organizations,metric_sets';
   var tickets = {}, users = {}, orgs = {}, sets = {}, pages = 0;
 
-  while (url && pages < 50) {
+  while (url && pages < 80) {
     var res = zdGet(url);
     pages++;
     (res.tickets || []).forEach(function (t) {
@@ -704,8 +744,92 @@ function syncSla() {
   });
 
   writeRca(ss, rows);
+  writeClocks(ss, clockRows(state, zd.byId));
   Logger.log(slaSummary(rows, zd).join('\n'));
   return rows;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// "SLA Clocks", ONE ROW PER TICKET — THE DASHBOARD'S DENOMINATOR
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// The RCA sheet answers "which tickets breached". It cannot answer "how many
+// clocks ran at all", which is what a compliance PERCENTAGE divides by, and it
+// carries no breach timestamp, which is what Zendesk filters a date range on.
+// This tab answers both, in five columns nobody has to read by hand.
+
+var CLOCK_HEADERS = ['Ticket ID', 'First Response SLA', 'Response Finished',
+                     'Resolution SLA', 'Resolution Finished'];
+
+/** Completed clocks only — Explore's "SLA metric status = Completed". */
+function clockRows(state, byId) {
+  var out = [];
+  Object.keys(state).sort(function (a, b) { return a - b; }).forEach(function (key) {
+    if (!byId[key]) return;                         // deleted in Zendesk
+    var a = finishedClock(state[key].response), b = finishedClock(state[key].resolution);
+    if (!a && !b) return;                           // nothing has finished yet
+    out.push(['#' + key,
+              a ? a.status : '', a && a.at ? new Date(a.at) : '',
+              b ? b.status : '', b && b.at ? new Date(b.at) : '']);
+  });
+  return out;
+}
+
+function finishedClock(m) {
+  return m && (m.status === 'Met' || m.status === 'Breached') && m.at ? m : null;
+}
+
+function writeClocks(ss, rows) {
+  var sh = ss.getSheetByName(CLOCK_SHEET) || ss.insertSheet(CLOCK_SHEET);
+  var w = CLOCK_HEADERS.length;
+  sh.clear();
+  sh.getRange(1, 1, 1, w).setValues([CLOCK_HEADERS]).setFontWeight('bold')
+    .setBackground('#DDEEFF');
+  if (rows.length) {
+    sh.getRange(2, 1, rows.length, w).setValues(rows);
+    sh.getRange(2, 3, rows.length, 1).setNumberFormat(NUM_FMT);
+    sh.getRange(2, 5, rows.length, 1).setNumberFormat(NUM_FMT);
+  }
+  sh.setFrozenRows(1);
+  try { sh.hideSheet(); } catch (err) { /* already hidden, or the only sheet */ }
+
+  var met = 0, breached = 0;
+  rows.forEach(function (r) {
+    [1, 3].forEach(function (i) {
+      if (r[i] === 'Met') met++; else if (r[i] === 'Breached') breached++;
+    });
+  });
+  Logger.log('SLA Clocks: ' + rows.length + ' tickets, ' + (met + breached) +
+             ' finished clocks (' + met + ' met, ' + breached + ' breached)');
+}
+
+/** The tab as the dashboard wants it: [id, 'M'|'B'|'', when, 'M'|'B'|'', when]. */
+function feedClocks() {
+  var sh = activeSS().getSheetByName(CLOCK_SHEET);
+  if (!sh) return [];
+  var n = sh.getLastRow() - 1;
+  if (n < 1) return [];
+
+  var grid = sh.getRange(2, 1, n, CLOCK_HEADERS.length).getValues(), out = [];
+  for (var i = 0; i < grid.length; i++) {
+    var id = normKey(grid[i][0]);
+    if (!id) continue;
+    out.push([id, clockCode(grid[i][1]), slaStamp(grid[i][2]),
+                  clockCode(grid[i][3]), slaStamp(grid[i][4])]);
+  }
+  return out;
+}
+
+function clockCode(v) {
+  var s = String(v || '').trim().toLowerCase();
+  return s === 'met' ? 'M' : s === 'breached' ? 'B' : '';
+}
+
+/** Local time, never stamped Z — the browser must not shift it 5.5 hours. */
+function slaStamp(v) {
+  var d = v instanceof Date ? v : (v ? new Date(v) : null);
+  if (!d || isNaN(d.getTime())) return '';
+  return Utilities.formatDate(d, TZ, "yyyy-MM-dd'T'HH:mm:ss");
 }
 
 /** "First Response SLA", "Resolution SLA", "Response & Resolution SLA" or ''. */
@@ -797,15 +921,18 @@ function writeRca(ss, rows) {
 }
 
 function slaSummary(rows, zd) {
-  var byType = {}, byOwner = {};
+  var byType = {}, byOwner = {}, newest = null;
   rows.forEach(function (r) {
     byType[r[2]] = (byType[r[2]] || 0) + 1;
     byOwner[r[12] || '—'] = (byOwner[r[12] || '—'] || 0) + 1;
+    if (r[1] instanceof Date && (!newest || r[1] > newest)) newest = r[1];
   });
   var withRca = rows.filter(function (r) { return String(r[21] || '').trim(); }).length;
   var out = ['SLA Breach - RCA: ' + rows.length + ' breached tickets   (' +
              zd.count + ' tickets in Zendesk)'];
   Object.keys(byType).sort().forEach(function (k) { out.push('  ' + zdPad(k, 28) + byType[k]); });
+  out.push('  newest breached ticket    ' +
+           (newest ? Utilities.formatDate(newest, TZ, 'dd-MMM-yyyy HH:mm') : 'none'));
   out.push('  root cause written        ' + withRca + ' of ' + rows.length);
   out.push('  by L1 owner: ' + Object.keys(byOwner).sort().map(function (k) {
     return k + ' ' + byOwner[k]; }).join(', '));
@@ -860,34 +987,52 @@ function slaState(events, byId, now) {
     var breached = !!last && !within;
     var done     = stops.length > 0;
 
+    // When the clock finished, which is the date Zendesk files this SLA under:
+    // the breach event's own timestamp when it breached, otherwise the stop.
+    var stopped  = stops.length ? stops[stops.length - 1].time : null;
+    var finished = !done ? null : breached && last ? last.time : stopped;
+
     var row = out[ticket] || (out[ticket] = {
-      response:   { status: '', mins: '', target: '' },
-      resolution: { status: '', mins: '', target: '' }
+      response:   { status: '', mins: '', target: '', at: null },
+      resolution: { status: '', mins: '', target: '', at: null }
     });
     row[SLA_METRICS[metric]] = {
       status: breached ? (done ? 'Breached' : 'Breached (still open)') : done ? 'Met' : 'Running',
       mins:   elapsed == null ? '' : elapsed,
-      target: target
+      target: target,
+      at:     finished
     };
   });
   return out;
 }
 
 /**
- * The SLA events for both metrics, whole history. Each page's end_time is the
- * next start_time, so events on that second repeat and are de-duplicated by id.
- * Events Zendesk withdrew are ignored. Null if it runs out of time.
+ * The SLA events for both metrics, whole history.
+ *
+ * 21.1.0 ended the stream as soon as a page held fewer than 100 events.
+ * Zendesk pages this export by TIME, not by count, so a quiet stretch returns
+ * a short page in the MIDDLE of the stream and everything after it was never
+ * read — which is why the RCA sheet stopped at #1287 on 6 September while the
+ * ticket log ran on to 22 September. The stream now ends only where Zendesk
+ * says it ends: end_of_stream, no next_page, or an empty page.
  */
 function zdSlaEvents(started) {
-  var start = 0, seen = {}, out = [], pages = 0;
+  var start = 0, seen = {}, out = [], pages = 0, raw = 0, newest = 0;
+
   while (true) {
-    if (Date.now() - started > 4.5 * 60 * 1000) return null;
-    if (pages) Utilities.sleep(6500);            // this export allows 10 calls a minute
+    if (Date.now() - started > 4.5 * 60 * 1000) {
+      Logger.log('SLA events: out of time after ' + pages + ' page(s) — sheet left alone.');
+      return null;
+    }
+    if (pages) Utilities.sleep(6500);          // this export allows 10 calls a minute
     var res = zdGet('/api/v2/incremental/ticket_metric_events.json?start_time=' + start);
     pages++;
 
     var evs = res.ticket_metric_events || [];
+    raw += evs.length;
     evs.forEach(function (e) {
+      var t = e.time ? new Date(e.time).getTime() : 0;
+      if (t > newest) newest = t;
       if (e.deleted === true || !SLA_METRICS[e.metric] || seen[e.id]) return;
       if (e.type !== 'apply_sla' && e.type !== 'breach' &&
           e.type !== 'fulfill' && e.type !== 'update_status') return;
@@ -897,22 +1042,159 @@ function zdSlaEvents(started) {
       out.push({
         id: Number(e.id) || 0, ticket: String(e.ticket_id), metric: e.metric,
         inst: Number(e.instance_id) || 0, type: e.type,
-        time: e.time ? new Date(e.time).getTime() : 0,
+        time: t,
         mins: bizMin(e.status),
         target: sla.target != null ? Number(sla.target)
               : sla.target_in_seconds != null ? Number(sla.target_in_seconds) / 60 : ''
       });
     });
 
-    if (evs.length < 100 || !res.next_page || res.end_of_stream) return out;
+    // Where the next page starts: Zendesk's end_time, or the start_time it put
+    // in next_page. Only Zendesk decides the stream is finished.
     var end = Number(res.end_time || 0);
+    if (!end && res.next_page) {
+      var m = String(res.next_page).match(/[?&]start_time=(\d+)/);
+      if (m) end = Number(m[1]);
+    }
+    if (res.end_of_stream === true || !res.next_page || !evs.length) break;
+    if (end <= start) {                    // a whole page inside one second
+      Logger.log('SLA events: more than one page at ' + zdStamp(start) + ' — stepping a second on.');
+      start = start + 1;
+    } else {
+      start = end;
+    }
+  }
+
+  Logger.log('SLA events: ' + out.length + ' kept of ' + raw + ' read, ' + pages +
+             ' page(s), newest event ' + (newest ? zdStamp(newest / 1000) : 'none'));
+  return out;
+}
+
+/** Unix seconds -> a readable stamp, for the logs above. */
+function zdStamp(sec) {
+  return Utilities.formatDate(new Date(Number(sec) * 1000), TZ, 'dd-MMM-yyyy HH:mm');
+}
+
+/**
+ * Read-only: walks the SLA event export and says, page by page, what Zendesk
+ * returns. Run it if the RCA sheet ever looks like it stopped in the past.
+ */
+function slaEventProbe() {
+  var start = 0, pages = 0, lastId = 0, newest = 0, started = Date.now();
+  var out = ['SLA event export, page by page'];
+  while (pages < 25 && Date.now() - started < 4 * 60 * 1000) {
+    if (pages) Utilities.sleep(6500);
+    var res = zdGet('/api/v2/incremental/ticket_metric_events.json?start_time=' + start);
+    pages++;
+    var evs = res.ticket_metric_events || [];
+    evs.forEach(function (e) {
+      var t = e.time ? new Date(e.time).getTime() : 0;
+      if (t > newest) newest = t;
+      var id = Number(e.ticket_id) || 0;
+      if (id > lastId) lastId = id;
+    });
+    out.push('  page ' + pages + ': ' + zdPad(evs.length + ' events', 14) +
+             'start ' + zdPad(zdStamp(start), 20) +
+             'end ' + zdPad(res.end_time ? zdStamp(res.end_time) : '—', 20) +
+             'end_of_stream ' + (res.end_of_stream === true ? 'YES' : 'no') +
+             (res.next_page ? '' : '   no next_page'));
+    var end = Number(res.end_time || 0);
+    if (res.end_of_stream === true || !res.next_page || !evs.length) break;
     start = end > start ? end : start + 1;
   }
+  out.push('  highest ticket seen : #' + lastId);
+  out.push('  newest event        : ' + (newest ? zdStamp(newest / 1000) : 'none'));
+  Logger.log(out.join('\n'));
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TRIGGERS  —  run skInstallTriggers() once, after the first clean sync
 // ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Prints the five Explore SLA tiles for a date range, from the same numbers
+ * the dashboard will show. Put Zendesk side by side with this log: if a tile
+ * disagrees, the data is wrong, not the web app.
+ *
+ * Counts every clock that FINISHED inside the range, which is what Zendesk's
+ * time filter does on its SLA tab. A ticket raised before the range still
+ * counts here if its SLA finished inside it — that is the whole point.
+ */
+function slaCheckWindow() { return slaWindow(SLA_CHECK_RANGE[0], SLA_CHECK_RANGE[1]); }
+
+function slaWindow(from, to) {
+  var ss = activeSS();
+  var sh = ss.getSheetByName(CLOCK_SHEET);
+  if (!sh) { Logger.log('No "' + CLOCK_SHEET + '" tab yet — run syncSla() first.'); return null; }
+  var n = sh.getLastRow() - 1;
+  if (n < 1) { Logger.log('"' + CLOCK_SHEET + '" is empty — run syncSla() first.'); return null; }
+
+  // Level and auto-alert come from the ticket log, for every ticket, not just
+  // the ones raised inside the range.
+  var log = ticketsSheet(ss), lvl = {}, auto = {};
+  var rows = log.getLastRow() - HEADER_ROWS;
+  if (rows > 0) {
+    log.getRange(HEADER_ROWS + 1, 1, rows, COL.SUMMARY).getValues().forEach(function (r) {
+      var k = normKey(r[COL.TICKET - 1]);
+      if (!k) return;
+      lvl[k]  = String(r[COL.LEVEL - 1] || '').trim().toUpperCase() === 'L3' ? 'L3' : 'L1';
+      auto[k] = /^\s*automatic alert/i.test(String(r[COL.SUMMARY - 1] || ''));
+    });
+  }
+
+  var t = { frTotal: 0, frBreach: 0, resTotal: 0, resBreach: 0,
+            frCust: 0, frAuto: 0, resL1Cust: 0, resL3Cust: 0, resL1Auto: 0, resL3Auto: 0 };
+  var listed = [];
+
+  sh.getRange(2, 1, n, CLOCK_HEADERS.length).getValues().forEach(function (r) {
+    var id = normKey(r[0]);
+    if (!id) return;
+    var isL3 = lvl[id] === 'L3', isAuto = !!auto[id];
+
+    if (inRange(r[2], from, to) && clockCode(r[1])) {
+      t.frTotal++;
+      if (clockCode(r[1]) === 'B') {
+        t.frBreach++; isAuto ? t.frAuto++ : t.frCust++;
+        listed.push('#' + id + ' first response, ' + slaStamp(r[2]));
+      }
+    }
+    if (inRange(r[4], from, to) && clockCode(r[3])) {
+      t.resTotal++;
+      if (clockCode(r[3]) === 'B') {
+        t.resBreach++;
+        if (isL3) { isAuto ? t.resL3Auto++ : t.resL3Cust++; }
+        else      { isAuto ? t.resL1Auto++ : t.resL1Cust++; }
+        listed.push('#' + id + ' resolution, ' + slaStamp(r[4]) + ', ' + lvl[id]);
+      }
+    }
+  });
+
+  var pc = function (bad, all) { return all ? (Math.round((1 - bad / all) * 1000) / 10).toFixed(1) : '100.0'; };
+  Logger.log([
+    'SLA for ' + from + ' to ' + to + '  (by the date each clock finished, as Zendesk counts it)',
+    '  First Response SLA Compliance %      ' + pc(t.frBreach, t.frTotal) + '%   of ' + t.frTotal + ' clocks',
+    '  First Response SLA breached tickets  ' + t.frBreach,
+    '  Resolution SLA Compliance %          ' + pc(t.resBreach, t.resTotal) + '%   of ' + t.resTotal + ' clocks',
+    '  Resolution SLA breached - L1         ' + (t.resL1Cust + t.resL1Auto),
+    '  Resolution SLA breached - L3         ' + (t.resL3Cust + t.resL3Auto),
+    '',
+    '  1st Response breached - Customer     ' + t.frCust,
+    '  1st Response breached - Auto         ' + t.frAuto,
+    '  L1 Customer - Resolution breached    ' + t.resL1Cust,
+    '  L3 Customer - Resolution breached    ' + t.resL3Cust,
+    '  L1 Auto - Resolution breached        ' + t.resL1Auto,
+    '  L3 Auto - Resolution breached        ' + t.resL3Auto,
+    '',
+    listed.length ? '  breached in this range:' : '  nothing breached in this range.'
+  ].concat(listed.map(function (x) { return '    ' + x; })).join('\n'));
+  return t;
+}
+
+/** Is this cell's date inside [from, to], compared as plain yyyy-MM-dd days? */
+function inRange(v, from, to) {
+  var d = slaStamp(v).substring(0, 10);
+  return !!d && d >= from && d <= to;
+}
 
 function skInstallTriggers() {
   var ours = { zdSync: 1, syncDates: 1, importSla: 1, syncSla: 1, syncTickets: 1 };
@@ -946,6 +1228,11 @@ function skildStatus() {
 // HELPERS
 // ═══════════════════════════════════════════════════════════════════════════
 
+/**
+ * Zendesk GET with retries. A big page occasionally arrives cut off mid-JSON —
+ * that is a broken transfer, not bad data, so the same request is asked again
+ * rather than throwing "Unterminated string in JSON".
+ */
 function zdGet(path) {
   var p = PropertiesService.getScriptProperties();
   var sub = p.getProperty('ZD_SUBDOMAIN'), email = p.getProperty('ZD_EMAIL'),
@@ -962,7 +1249,16 @@ function zdGet(path) {
       headers: { Authorization: 'Basic ' + auth, Accept: 'application/json' }
     });
     var code = res.getResponseCode();
-    if (code === 200) return JSON.parse(res.getContentText());
+    if (code === 200) {
+      var text = res.getContentText();
+      try { return JSON.parse(text); }
+      catch (err) {
+        Logger.log('Zendesk reply came through truncated (' + text.length +
+                   ' characters) — retrying.');
+        Utilities.sleep(2000 * (attempt + 1));
+        continue;
+      }
+    }
     if (code === 429) {
       Utilities.sleep((Number(res.getHeaders()['Retry-After'] || 10) + 1) * 1000);
       continue;
@@ -1015,9 +1311,9 @@ function normKey(v) {
 }
 
 /**
- * Named skStatus, not normalizeStatus: ZRA_WebApp.gs defines a function of
- * that name with different behaviour, and Apps Script silently lets the
- * last-loaded definition win across files in the same project.
+ * Named skStatus, not normalizeStatus: another file in this project defines a
+ * function of that name with different behaviour, and Apps Script silently
+ * lets the last-loaded definition win across files in the same project.
  */
 function skStatus(s) {
   var v = String(s || '').trim();

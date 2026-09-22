@@ -93,6 +93,16 @@ function toFeed(d) {
     status: s.status || '', rca: s.rootCause || '',
   }));
 
+  /* SLA clocks, one row per ticket: [id, 'M'|'B'|'', finished, 'M'|'B'|'',
+     finished]. The SLA window filters on THESE dates. Zendesk's SLA reports
+     ask when a target finished, not when the ticket was raised — a ticket
+     raised on the 6th that breaches on the 8th belongs to the 8th. */
+  const clocks = (d.clocks || []).map(c => ({
+    id: bare(c[0]),
+    fr: c[1] || '', frAt: c[2] || '',
+    res: c[3] || '', resAt: c[4] || '',
+  }));
+
   const agents = (d.roster || []).map(a => ({
     name: a.name, status: a.active ? 'Active' : 'Inactive', role: a.role || 'Agent',
   }));
@@ -107,7 +117,7 @@ function toFeed(d) {
       dateTo: (d.meta && d.meta.dateTo) || days[days.length - 1] || '',
     },
     dict: { customers, owners, cats, robots },
-    cols, tickets, sla, agents,
+    cols, tickets, sla, clocks, agents,
   };
 }
 
