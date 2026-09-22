@@ -378,3 +378,8 @@ button.stat:hover { box-shadow: var(--shadow2); transform: translateY(-1px); bor
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
+
+/* The Client Review runs in an iframe and fills the content area outright,
+   so it keeps its own padding rather than sitting inside the dashboard's. */
+.content--flush { padding: 0; display: flex; min-height: 0; }
+.content--flush > iframe { flex: 1; min-height: 0; width: 100%; border: 0; }

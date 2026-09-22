@@ -19,6 +19,7 @@ import Unsolved from "./pages/Unsolved";
 import { CustomerList, CustomerDetail, RobotDetail } from "./pages/Customers";
 import Anomalies from "./pages/Anomalies";
 import Faults from "./pages/Faults";
+import Review from "./pages/Review";
 import "./styles.css";
 
 const NAV = [
@@ -33,12 +34,15 @@ const NAV = [
     { id: "customers", label: "Customers", icon: "◫" },
     { id: "anomalies", label: "Anomalies", icon: "◮", badge: "anomalies", alert: true },
   ]},
+  { group: "Reporting", items: [
+    { id: "review", label: "Client Review", icon: "◰" },
+  ]},
 ];
 
 const TITLES = {
   overview: "Overview", trends: "Shift Summary", agents: "Agents",
   unsolved: "Unsolved Tickets", faults: "Fault Analysis",
-  customers: "Customers", anomalies: "Anomalies",
+  customers: "Customers", anomalies: "Anomalies", review: "Client Review",
 };
 
 function Dashboard({ session }) {
@@ -113,9 +117,9 @@ function Dashboard({ session }) {
     <div className="app">
       <nav className={`sidebar ${sideOpen ? "sidebar--open" : ""}`} aria-label="Sections">
         <div className="sidebar__brand">
-          <span className="sidebar__mark">ZR</span>
+          <span className="sidebar__mark">SA</span>
           <span>
-            <span style={{ display: "block", fontSize: 13.5, fontWeight: 680, letterSpacing: "-.01em" }}>ZRA CEC</span>
+            <span style={{ display: "block", fontSize: 13.5, fontWeight: 680, letterSpacing: "-.01em" }}>Skild AI</span>
             <span style={{ display: "block", fontSize: 11.5, color: "var(--text3)" }}>Customer Excellence Center</span>
           </span>
         </div>
@@ -186,7 +190,7 @@ function Dashboard({ session }) {
           <ThemeToggle />
         </header>
 
-        <main className={`content ${refreshing ? "refreshing" : ""}`}>
+        <main className={`content ${view === "review" ? "content--flush" : ""} ${refreshing ? "refreshing" : ""}`}>
           {staleError && (
             <div className="notice" style={{ marginBottom: 16 }}>
               <span aria-hidden="true">!</span>
@@ -224,6 +228,9 @@ function Dashboard({ session }) {
           {view === "customers" && selRobot && (
             <RobotDetail robotId={selRobot} d={d} colorForCategory={colorForCategory}
               onBack={() => setSelRobot(null)} onDrill={openDrill} />
+          )}
+          {view === "review" && (
+            <Review from={from} to={to} theme={t.mode} />
           )}
           {view === "anomalies" && (
             <Anomalies d={d} colorForCategory={colorForCategory} onOpenRobot={openRobot} />

@@ -555,3 +555,17 @@ table.tbl { font-size: 13px; }
   animation:bootslide 1.15s var(--e-std) infinite}
 @keyframes bootslide{0%{transform:translateX(-100%)}100%{transform:translateX(330%)}}
 @media (prefers-reduced-motion:reduce){.boot__bar i{animation:none;width:100%}}
+
+/* ── embedded review: no sidebar, no date picker, just the report ──────── */
+.embed { min-height: 100vh; display: flex; flex-direction: column; background: transparent; }
+.embedbar { position: sticky; top: 0; z-index: 40; display: flex; align-items: center; gap: 8px;
+  justify-content: flex-end;
+  padding: 10px 20px; background: var(--bg2); border-bottom: 1px solid var(--line);
+  backdrop-filter: saturate(140%) blur(8px); }
+.embedbar__t { font-size: 12.5px; color: var(--ink3); margin-right: auto;
+  font-variant-numeric: tabular-nums; }
+.content--embed { padding: 20px; }
+@media (max-width: 720px) { .embedbar { padding: 9px 14px; } .content--embed { padding: 14px; } }
+.embed__msg { min-height: 60vh; display: grid; place-content: center; gap: 12px; justify-items: center;
+  text-align: center; padding: 30px; color: var(--ink2); font-size: 13px; max-width: 520px; margin: 0 auto; }
+.embed__msg .boot__bar { width: 200px; margin: 0; }

@@ -1,7 +1,7 @@
 /* =========================================================================
    views — shell, sign-in, Overview, Client Review, presentation mode
    ========================================================================= */
-const S = { view: 'overview', range: null, user: null, sideOpen: false, menu: null,
+const S = { view: 'overview', range: (typeof window !== 'undefined' && window.__RANGE) || null, user: null, sideOpen: false, menu: null,
   show: { cats: false, custTable: false } };
 const $ = s => document.querySelector(s);
 const q = (root, s) => root.querySelector(s);
@@ -125,6 +125,11 @@ const TITLES = { overview: 'Overview', review: 'Client Review' };
    left alone, because the chart tooltip, the toast and the anchor a deck
    generator appends while saving a file all hang off it and must survive a
    re-render. */
+/* Embed mode: the review is rendered inside the dashboard, in an iframe, so it
+   brings no sidebar and no date picker of its own — the dashboard's own filter
+   drives it over postMessage. Everything else is the same code. */
+const EMBED = new URLSearchParams(location.search).has('embed');
+
 function appRoot() {
   let r = document.getElementById('app-root');
   if (!r) { r = document.createElement('div'); r.id = 'app-root'; document.body.appendChild(r); }
@@ -133,6 +138,23 @@ function appRoot() {
 
 function shell() {
   const badges = { open: D.summary.open };
+  if (EMBED) {
+    appRoot().innerHTML = `
+    <div class="embed">
+      <div class="embedbar">
+        <button class="btn btn--sm" id="present" title="Full-screen presentation">\u26F6 Present</button>
+        <div class="menu" id="expmenu"><button class="btn btn--icon btn--sm" id="expbtn" title="Download deck">\u21E9</button>
+        ${S.menu === 'exp' ? `<div class="menu__pop" id="exppop">
+          <button class="menu__opt" data-ex="pptx">Download PowerPoint</button>
+          <button class="menu__opt" data-ex="pdf">Download PDF</button>
+        </div>` : ''}</div>
+      </div>
+      <main class="content content--embed" id="content"></main>
+    </div>`;
+    wireShell();
+    return;
+  }
+
   const initials = (S.user?.name || 'U').split(' ').map(w => w[0]).slice(0, 2).join('');
   const isReview = S.view === 'review';
   appRoot().innerHTML = `
@@ -188,22 +210,27 @@ function shell() {
       <main class="content" id="content"></main>
     </div>
   </div>`;
+  wireShell();
+}
+
+function wireShell() {
+
 
   document.querySelectorAll('[data-view]').forEach(b => b.addEventListener('click', () => {
     S.view = b.dataset.view; S.sideOpen = false; S.menu = null; render();
   }));
-  $('#menu').addEventListener('click', () => { S.sideOpen = !S.sideOpen; render(); });
+  $('#menu')?.addEventListener('click', () => { S.sideOpen = !S.sideOpen; render(); });
   $('#scrim')?.addEventListener('click', () => { S.sideOpen = false; render(); });
-  $('#theme').addEventListener('click', () => {
+  $('#theme')?.addEventListener('click', () => {
     const dark = document.documentElement.dataset.theme === 'dark';
     document.documentElement.dataset.theme = dark ? 'light' : 'dark';
     try { localStorage.setItem('skild.theme', dark ? 'light' : 'dark'); } catch {}
     render();
   });
-  $('#signout').addEventListener('click', () => {
+  $('#signout')?.addEventListener('click', () => {
     SkildAuth.signOut();
   });
-  $('#drbtn').addEventListener('click', e => { e.stopPropagation(); S.menu = S.menu === 'dr' ? null : 'dr'; render(); });
+  $('#drbtn')?.addEventListener('click', e => { e.stopPropagation(); S.menu = S.menu === 'dr' ? null : 'dr'; render(); });
   $('#expbtn')?.addEventListener('click', e => {
     e.stopPropagation();
     if (EXPORTING) return toast('A download is already building — one moment.');
@@ -732,7 +759,7 @@ function render() {
   const pv = prevPeriod(r.from, r.to);
   P = pv ? { from: pv.from, to: pv.to, whole: pv.whole, d: derive(pv.from, pv.to), days: daysBetween(r.from, r.to) + 1 } : null;
   shell();
-  if (S.view === 'review') viewReview(); else viewOverview();
+  if (EMBED || S.view === 'review') viewReview(); else viewOverview();
 }
 function boot() { render(); }
 
@@ -742,6 +769,17 @@ addEventListener('resize', () => {
   rT = setTimeout(() => { if (!PRESENT && !EXPORTING && S.user) render(); }, 180);
 });
 
-/* boot.js has already authenticated the visitor and loaded the feed. */
+/* The dashboard around us owns the date filter and the theme. */
+if (EMBED) {
+  addEventListener('message', e => {
+    if (e.source !== parent || !e.data || e.data.type !== 'skild:review') return;
+    const { from, to, theme } = e.data;
+    if (theme) document.documentElement.dataset.theme = theme;
+    if (from && to) S.range = { from, to };
+    if (!PRESENT && !EXPORTING) render();
+  });
+}
+
+/* embed.js has already fetched the feed. */
 S.user = window.__USER || { name: '', role: '' };
 boot();

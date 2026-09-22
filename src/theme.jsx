@@ -121,7 +121,7 @@ export function ThemeProvider({ children }) {
   }, [mode]);
 
   const value = useMemo(
-    () => ({ ...THEMES[mode], toggle: () => setMode(m => (m === "dark" ? "light" : "dark")) }),
+    () => ({ ...THEMES[mode], mode, toggle: () => setMode(m => (m === "dark" ? "light" : "dark")) }),
     [mode]
   );
   return <ThemeCtx.Provider value={value}>{children}</ThemeCtx.Provider>;
