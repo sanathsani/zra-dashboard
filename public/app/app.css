@@ -605,6 +605,12 @@ table.tbl { font-size: 13px; }
 .expo .present__inner { max-width: none; width: 100%; padding: 30px 52px; }
 .expo .sec { margin-bottom: 0; }
 .expo .sec, .expo .rhead { opacity: 1 !important; transform: none !important; animation: none !important; }
+/* A photograph catches whatever is on screen at that instant, and these bars
+   grow from nothing over half a second: the biggest bar in each chart was
+   caught at a sliver, with its figure — 246 replies, 272 restorations —
+   still hidden inside it. On the stage every animation is already over. */
+.expo *, .expo *::before, .expo *::after { animation: none !important; transition: none !important; }
+.expo .bfill { width: var(--w) !important; }
 .expo .pcover { min-height: 0; padding: 60px 0; }
 .expo .present__end { margin: 0; }
 .expo [data-toggle], .expo .note__bar { display: none !important; }

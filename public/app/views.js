@@ -52,6 +52,13 @@ function mbox(label, value, foot) {
     ${foot ? `<div class="mbox__foot">${foot}</div>` : ''}</div>`;
 }
 
+/* Tickets the matrix can actually place: everything belonging to an account
+   with a name. Tickets from unnamed organisations count in every period
+   total but have no row to sit in. */
+function crossGrand() {
+  return D.customersShown.reduce((a, c) => a + c.total, 0);
+}
+
 /* customers × issue categories, the matrix from the tracker sheet */
 function crossTab() {
   /* columns alphabetical, like the tracker sheet */
@@ -479,7 +486,12 @@ function reviewSections() {
 
   out.push({
     id: 's4', title: 'Customers by issue category', sub: 'Every account against every category',
-    tag: `${D.customersShown.length} accounts · ${D.cats.length} categories`,
+    /* The matrix can only show accounts it can name, so its grand total is
+       short of the period whenever a ticket arrived without an organisation.
+       That used to be explained in a footnote under the table; it belongs in
+       the header, as a number, where the reader is already looking. */
+    tag: `${D.customersShown.length} accounts · ${D.cats.length} categories` +
+      (crossGrand() < D.total ? ` · ${num(crossGrand())} of ${num(D.total)} tickets` : ''),
     ph: 'The accounts whose pattern is worth naming, and what is being done about them.',
     html: crossTab(),
   });
