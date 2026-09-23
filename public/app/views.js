@@ -56,13 +56,25 @@ function mbox(label, value, foot) {
 function crossTab() {
   /* columns alphabetical, like the tracker sheet */
   const cats = D.cats.slice().sort((a, b) => a.name.localeCompare(b.name));
-  /* Every ticket, including the ones filed against an account that is hidden
-     from the customer lists — our own organisation, or a blank. A matrix
-     whose grand total is one short of the period is a matrix somebody has to
-     explain, and the explanation is always "a ticket was filed under the
-     wrong account", which belongs in the sheet, not under the table. Lists
-     and charts elsewhere still leave those names out. */
-  const rows = D.customers.filter(c => c.total > 0);
+  /* Every ticket. Some of them have no customer and never will: a voicemail
+     from a number nobody recognises, a PagerDuty test, an internal case. The
+     sheet files those under "Other", which is a fine note to yourself and a
+     poor thing to put in front of a client — and leaving them out entirely
+     made the grand total 48 short of the period, which is worse than either.
+     They are counted, in one row, under a name that says what they are.
+     The customer tables and charts still leave them out. */
+  const named = D.customers.filter(c => c.total > 0 && !c.hidden);
+  const loose = D.customers.filter(c => c.total > 0 && c.hidden);
+  const rows = named.slice();
+  if (loose.length) {
+    const cats = {};
+    let total = 0;
+    loose.forEach(c => {
+      total += c.total;
+      Object.keys(c.cats).forEach(k => { cats[k] = (cats[k] || 0) + c.cats[k]; });
+    });
+    rows.push({ id: 'loose', name: 'No account recorded', total, cats });
+  }
   const colTotal = cats.map(cat => rows.reduce((a, c) => a + (c.cats[cat.id] || 0), 0));
   const grand = colTotal.reduce((a, b) => a + b, 0);
   /* one hue, light → dark with magnitude — the cell colour IS the reading */
@@ -485,7 +497,7 @@ function reviewSections() {
 
   out.push({
     id: 's4', title: 'Customers by issue category', sub: 'Every account against every category',
-    tag: `${D.customers.filter(c => c.total > 0).length} accounts · ${D.cats.length} categories`,
+    tag: `${D.customersShown.filter(c => c.total > 0).length} accounts · ${D.cats.length} categories`,
     ph: 'The accounts whose pattern is worth naming, and what is being done about them.',
     html: crossTab(),
   });
