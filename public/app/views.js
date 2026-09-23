@@ -179,8 +179,7 @@ function shell() {
           <span style="display:block;font-size:11px">${esc(S.user?.role || '')}</span></span>
           <button class="btn btn--icon" id="signout" title="Sign out" style="margin-left:auto;padding:4px 7px">⏻</button>
         </div>
-        <div style="display:flex;align-items:center;gap:7px"><span class="livedot"></span>
-          <span>Live · ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span></div>
+        ${freshness()}
       </div>
     </nav>
     ${S.sideOpen ? '<button class="scrim" id="scrim"></button>' : ''}
@@ -715,6 +714,28 @@ function secHTML(sec, i, withNote) {
 function noteStatic(id) {
   const v = noteMarkup(NOTES[noteKey(id)]).trim();
   return v ? `<div class="note"><div class="note__body">${v}</div></div>` : '';
+}
+
+/* "Live" used to be the browser's own clock, which says nothing: if the
+   sync had not run for six hours the sidebar still read Live and the current
+   time. This is the age of the DATA — when Apps Script last built the feed —
+   and it goes amber once that is more than an hour old, because the sync runs
+   every fifteen minutes and an hour means something is wrong. */
+function freshness() {
+  const made = FEED.meta && FEED.meta.generated ? new Date(FEED.meta.generated) : null;
+  if (!made || isNaN(made.getTime())) {
+    return `<div style="display:flex;align-items:center;gap:7px"><span class="livedot"></span>
+      <span>Live</span></div>`;
+  }
+  const mins = Math.max(0, Math.round((Date.now() - made.getTime()) / 60000));
+  const stale = mins > 60;
+  const when = made.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const ago = mins < 1 ? 'just now' : mins < 60 ? mins + ' min ago'
+            : mins < 1440 ? Math.round(mins / 60) + ' h ago' : Math.round(mins / 1440) + ' d ago';
+  return `<div style="display:flex;align-items:center;gap:7px"
+       title="The sheet was last synced at ${esc(when)}">
+      <span class="livedot"${stale ? ' style="background:var(--warn)"' : ''}></span>
+      <span${stale ? ' style="color:var(--warn)"' : ''}>Synced ${esc(when)} · ${esc(ago)}</span></div>`;
 }
 
 function viewReview() {
