@@ -53,9 +53,10 @@ export default function Review({ from, to, theme, data }) {
     return () => removeEventListener("message", onMessage);
   }, []);
 
-  // Data arrived (or was refreshed) after the iframe asked for it.
+  // Data arrived, or was refreshed. Push it either way: the frame needs the
+  // new numbers as much as it needed the first ones.
   useEffect(() => {
-    if (wants.current && sendFeed()) wants.current = false;
+    if (sendFeed()) wants.current = false;
   }, [data]);
 
   useEffect(() => {

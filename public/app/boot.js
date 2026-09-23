@@ -233,6 +233,18 @@ function loadScript(src) {
 
   window.__FEED = toFeed(data);
   window.__USER = s.user;
+
+  /* The dashboard pushes a fresh feed whenever somebody presses refresh.
+     core.js took its copy at load, so the honest way to show new numbers is
+     to start this frame again — which costs nothing, because the feed comes
+     from the dashboard's memory rather than the network. */
+  const stamp0 = (data.meta && data.meta.generated) || '';
+  addEventListener('message', e => {
+    if (e.source !== parent || e.origin !== location.origin) return;
+    if (!e.data || e.data.type !== 'skild:feed' || !e.data.data) return;
+    const stamp = (e.data.data.meta && e.data.data.meta.generated) || '';
+    if (stamp && stamp !== stamp0) location.reload();
+  });
   if (!window.__FEED.tickets.length) {
     return screenError('The feed returned no ticket rows.');
   }

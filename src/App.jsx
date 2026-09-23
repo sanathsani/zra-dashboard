@@ -9,7 +9,7 @@ import { useState, useMemo } from "react";
 import { clearSession } from "./SignIn.jsx";
 import { ThemeProvider, useTheme, colorFor } from "./theme";
 import {
-  useLiveData, derive, buildStableOrder, dataBounds, presetRanges, fmtDate,
+  useLiveData, derive, buildStableOrder, dataBounds, presetRanges, fmtDate, agoLabel,
 } from "./data";
 import { DateRange, ThemeToggle, TicketDrawer } from "./components";
 import Overview from "./pages/Overview";
@@ -47,7 +47,7 @@ const TITLES = {
 
 function Dashboard({ session }) {
   const t = useTheme();
-  const { loading, error, staleError, data, role, ts, refreshing } = useLiveData();
+  const { loading, error, staleError, data, role, ts, refreshing, refresh } = useLiveData();
 
   const [view, setView] = useState("overview");
   const [selCust, setSelCust] = useState(null);
@@ -163,12 +163,24 @@ function Dashboard({ session }) {
                       onClick={() => { clearSession(); location.reload(); }}>⏻</button>
             </div>
           )}
+          {/* When the sheet was last read, and how long ago that was. A time on
+              its own reads as healthy whatever it says; "18 min ago" is the part
+              that tells you an edit has not landed yet. The button asks Apps
+              Script to rebuild from the sheet rather than serve its cache, which
+              is the only way to see a change you made a moment ago. */}
           <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--text3)" }}>
             <span className={`livedot ${staleError ? "livedot--stale" : ""}`} />
-            <span>
-              {staleError ? "Reconnecting" : "Live"} ·{" "}
+            <span style={{ minWidth: 0, flex: 1 }}>
+              {staleError ? "Reconnecting" : "Synced"} ·{" "}
               {ts ? new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}
+              {ts && <span style={{ opacity: .75 }}>{" · " + agoLabel(ts)}</span>}
             </span>
+            <button className="btn btn--icon" title="Read the sheet again, now"
+                    aria-label="Refresh from the sheet" disabled={refreshing}
+                    style={{ padding: "3px 6px", opacity: refreshing ? .5 : 1 }}
+                    onClick={() => refresh()}>
+              <span className={refreshing ? "spin" : ""} style={{ display: "inline-block" }}>⟳</span>
+            </button>
           </div>
         </div>
       </nav>

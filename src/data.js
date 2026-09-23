@@ -11,7 +11,7 @@
 //     issue, robot_id, shift }
 // ============================================================================
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { summariseFaults } from "./faults";
 
 import { getSession, clearSession } from "./SignIn.jsx";
@@ -46,8 +46,9 @@ function writeCachedFeed(payload) {
 /* One request, read as text. A serverless function that runs out of time
    answers with an HTML page, and JSON.parse on that threw "Unexpected token
    '<'" at the user — a message about nothing they can act on. */
-async function requestFeed(headers) {
-  const res = await fetch(WEB_APP_URL, { method: "GET", redirect: "follow", headers });
+async function requestFeed(headers, fresh) {
+  const res = await fetch(WEB_APP_URL + (fresh ? "?fresh=1" : ""),
+                          { method: "GET", redirect: "follow", headers });
   if (res.status === 401) return { signedOut: true };
 
   const text = await res.text();
@@ -67,6 +68,7 @@ async function requestFeed(headers) {
 
 // ─── Fetch ──────────────────────────────────────────────────────────────────
 export function useLiveData() {
+  const refreshRef = useRef(null);
   const [state, setState] = useState(() => {
     const c = readCachedFeed();
     return c
@@ -77,19 +79,19 @@ export function useLiveData() {
   useEffect(() => {
     let cancelled = false;
 
-    async function fetchData(isRefresh) {
+    async function fetchData(isRefresh, fresh) {
       if (isRefresh) setState(s => ({ ...s, refreshing: true }));
       try {
         // Two goes. A cold Apps Script cache is slow only the first time, and
         // one slow answer should not put an error card in front of anyone.
         let json;
         try {
-          json = await requestFeed(authHeader());
+          json = await requestFeed(authHeader(), fresh);
         } catch (first) {
           if (cancelled) return;
           await new Promise(r => setTimeout(r, 3000));
           if (cancelled) return;
-          json = await requestFeed(authHeader()).catch(() => { throw first; });
+          json = await requestFeed(authHeader(), fresh).catch(() => { throw first; });
         }
         // The session lasts 12 hours. When it lapses, drop it and show the
         // sign-in card again rather than leaving a dashboard that cannot refresh.
@@ -117,12 +119,28 @@ export function useLiveData() {
       }
     }
 
+    /* The refresh button asks for a rebuilt payload rather than the cached
+       one: the point of pressing it is that the sheet has just changed, and
+       the cache is up to fifteen minutes behind. */
+    refreshRef.current = () => fetchData(true, true);
+
     fetchData(false);
     const timer = setInterval(() => fetchData(true), REFRESH_MS);
     return () => { cancelled = true; clearInterval(timer); };
   }, []);
 
-  return state;
+  return { ...state, refresh: () => refreshRef.current && refreshRef.current() };
+}
+
+/** "4 min ago", "2 h ago" — the part of a timestamp that carries meaning. */
+export function agoLabel(iso) {
+  const t = new Date(iso).getTime();
+  if (!t || isNaN(t)) return "";
+  const mins = Math.max(0, Math.round((Date.now() - t) / 60000));
+  if (mins < 1) return "just now";
+  if (mins < 60) return mins + " min ago";
+  if (mins < 1440) return Math.round(mins / 60) + " h ago";
+  return Math.round(mins / 1440) + " d ago";
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────

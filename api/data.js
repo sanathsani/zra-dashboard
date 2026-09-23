@@ -44,7 +44,11 @@ export default async function handler(req, res) {
   const bell = setTimeout(() => stop.abort(), 45000);
 
   try {
-    const response = await fetch(`${APPS_URL}?key=${encodeURIComponent(KEY)}`, {
+    // ?fresh=1 — skip the Apps Script cache and read the sheet as it is now.
+    // Only ever sent by the refresh button, because it costs a rebuild.
+    const fresh = String((req.query && req.query.fresh) || '') === '1';
+    const response = await fetch(
+      `${APPS_URL}?key=${encodeURIComponent(KEY)}${fresh ? '&fresh=1' : ''}`, {
       redirect: 'follow',
       signal: stop.signal,
     });
