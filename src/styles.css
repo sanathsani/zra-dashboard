@@ -226,7 +226,7 @@ button.stat:hover { box-shadow: var(--shadow2); transform: translateY(-1px); bor
 /* ─── Popover ──────────────────────────────────────────────────────────── */
 .pop {
   position: absolute; top: calc(100% + 8px); right: 0; z-index: 60;
-  min-width: 260px; background: var(--surface);
+  min-width: 322px; background: var(--surface);
   border: 1px solid var(--border); border-radius: 12px;
   box-shadow: var(--shadow2); overflow: hidden;
 }

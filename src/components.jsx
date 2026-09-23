@@ -256,8 +256,10 @@ export function DateRange({ from, to, bounds, onChange }) {
             <button key={p.id} className="pop__row"
               onClick={() => { onChange(p.from, p.to); setOpen(false); }}>
               <span className="pop__check">{p.from === from && p.to === to ? "✓" : ""}</span>
-              <span style={{ flex: 1 }}>{p.label}</span>
-              <span style={{ color: "var(--text3)", fontSize: 12 }}>{fmtDateShort(p.from)}</span>
+              <span style={{ flex: 1, whiteSpace: "nowrap" }}>{p.label}</span>
+              <span style={{ color: "var(--text3)", fontSize: 12, whiteSpace: "nowrap" }}>
+                {p.note || fmtDateShort(p.from)}
+              </span>
             </button>
           ))}
           <div className="pop__foot">

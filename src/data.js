@@ -188,12 +188,42 @@ export function dataBounds(data) {
   return { from, to };
 }
 
+/* ── The client review fortnight ────────────────────────────────────────────
+   The client call runs every second Wednesday — 9 Sep, 23 Sep, 7 Oct — and
+   each one reviews the fortnight that closed the Sunday before it: Monday
+   sixteen days back through Sunday three days back. The call on 23 Sep covers
+   7 – 20 Sep; the one on 7 Oct covers 21 Sep – 4 Oct.
+   REVIEW_ANCHOR is one real meeting date. Every other meeting is a whole
+   number of fortnights from it, so the cadence carries itself forward and
+   the dates never have to be typed again. Twin of the block in
+   public/app/core.js — change both together, or the two range menus stop
+   agreeing with each other. */
+export const REVIEW_ANCHOR = "2026-09-23";
+
+/** n = 0 is today's call or the next one, n = -1 the one before it. */
+export function reviewWindow(n = 0, today = todayKey()) {
+  const days = Math.round(
+    (new Date(today + "T12:00:00") - new Date(REVIEW_ANCHOR + "T12:00:00")) / 864e5);
+  const meet = addDays(REVIEW_ANCHOR, (Math.ceil(days / 14) + n) * 14);
+  return { meet, from: addDays(meet, -16), to: addDays(meet, -3) };
+}
+/** "7 – 20 Sep", or "24 Aug – 6 Sep" when the fortnight straddles two months. */
+export function reviewSpan(from, to) {
+  const same = from.slice(0, 7) === to.slice(0, 7);
+  return `${same ? +from.slice(8) : fmtDateShort(from)} – ${fmtDateShort(to)}`;
+}
+
 /** Preset ranges, all computed from the data's own bounds and today. */
 export function presetRanges(bounds) {
   const today = todayKey();
   const end = today > bounds.to ? today : bounds.to;
   const clamp = f => (f < bounds.from ? bounds.from : f);
+  const now = reviewWindow(0), was = reviewWindow(-1);
   return [
+    { id: "rev0", label: `This review · ${reviewSpan(now.from, now.to)}`,
+      note: `Call ${fmtDateShort(now.meet)}`, from: now.from, to: now.to },
+    { id: "rev1", label: `Last review · ${reviewSpan(was.from, was.to)}`,
+      note: `Call ${fmtDateShort(was.meet)}`, from: was.from, to: was.to },
     { id: "7d",   label: "Last 7 days",   from: clamp(addDays(end, -6)),  to: end },
     { id: "30d",  label: "Last 30 days",  from: clamp(addDays(end, -29)), to: end },
     { id: "90d",  label: "Last 90 days",  from: clamp(addDays(end, -89)), to: end },

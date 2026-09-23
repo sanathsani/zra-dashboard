@@ -269,8 +269,9 @@ function rangeLabel() {
   return p ? p.label : `${fmtDateShort(D.from)} – ${fmtDateShort(D.to)}`;
 }
 function drMenu() {
-  return `<div class="menu__pop" id="drpop" style="min-width:252px">
+  return `<div class="menu__pop" id="drpop" style="min-width:322px">
     ${presets().map(p => `<button class="menu__opt" data-from="${p.from}" data-to="${p.to}">${p.label}
+      ${p.note ? `<i>${p.note}</i>` : ''}
       ${p.from === D.from && p.to === D.to ? '<b>✓</b>' : ''}</button>`).join('')}
     <div class="dr__custom">
       <label>From</label><input type="date" id="cfrom" value="${D.from}" min="${bounds.from}" max="${bounds.to}">
