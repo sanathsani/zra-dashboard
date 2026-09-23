@@ -467,6 +467,29 @@ function reviewSections() {
   });
 
   out.push({
+    id: 's9', title: 'First response and resolution time distribution',
+    /* The tag counts what the charts count: tickets raised AND solved inside
+       the window, which is Explore's set. s.solved is every solved ticket
+       raised in the window, and those two part company as soon as one of them
+       is solved after the period closes. */
+    sub: 'Time brackets · Zendesk clocks',
+    tag: `${num(D.brackets.hasResponse ? D.brackets.responseTotal : s.solved)} solved in period`,
+    ph: 'Speed story: how fast the team is replying and closing, and any outliers worth naming.',
+    html: `<div style="${cols(340)}">
+      ${card('First Response Time by Time Bracket', "Agent's first reply · solved tickets",
+        '<div class="js-fr"></div>')}
+      ${card('Target Restoration Time by Time Bracket',
+        D.brackets.restoreFromZendesk ? 'Requester wait clock · solved tickets' : 'Created to solved',
+        '<div class="js-restore"></div>')}
+    </div>`,
+    mount(root) {
+      chartBracket(q(root, '.js-fr'), D.brackets.response, 'var(--s3)',
+        { empty: 'No first-response data in the sheet yet.' });
+      chartBracket(q(root, '.js-restore'), D.brackets.restore, 'var(--res-bar)');
+    },
+  });
+
+  out.push({
     id: 's3', title: 'Ticket issue category summary', sub: `${D.cats.length} categories`, tag: period,
     ph: 'Which categories moved, and why.',
     html: `<div class="tblwrap"><table class="tbl">
@@ -564,29 +587,6 @@ function reviewSections() {
       mk('.js-age-all', 'all', 'Nothing open.');
       mk('.js-age-l1', 'l1', 'Nothing open at L1.');
       mk('.js-age-l3', 'l3', 'Nothing open at L3.');
-    },
-  });
-
-  out.push({
-    id: 's9', title: 'First response and resolution time distribution',
-    /* The tag counts what the charts count: tickets raised AND solved inside
-       the window, which is Explore's set. s.solved is every solved ticket
-       raised in the window, and those two part company as soon as one of them
-       is solved after the period closes. */
-    sub: 'Time brackets · Zendesk clocks',
-    tag: `${num(D.brackets.hasResponse ? D.brackets.responseTotal : s.solved)} solved in period`,
-    ph: 'Speed story: how fast the team is replying and closing, and any outliers worth naming.',
-    html: `<div style="${cols(340)}">
-      ${card('First Response Time by Time Bracket', "Agent's first reply · solved tickets",
-        '<div class="js-fr"></div>')}
-      ${card('Target Restoration Time by Time Bracket',
-        D.brackets.restoreFromZendesk ? 'Requester wait clock · solved tickets' : 'Created to solved',
-        '<div class="js-restore"></div>')}
-    </div>`,
-    mount(root) {
-      chartBracket(q(root, '.js-fr'), D.brackets.response, 'var(--s3)',
-        { empty: 'No first-response data in the sheet yet.' });
-      chartBracket(q(root, '.js-restore'), D.brackets.restore, 'var(--res-bar)');
     },
   });
 
