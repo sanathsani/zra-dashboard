@@ -92,10 +92,6 @@ const STABLE = (() => {
 const WAIT_BY_ID = (FEED.clocks || []).reduce(
   (a, c) => (c.waitMin != null ? ((a[c.id] = c.waitMin), a) : a), {});
 
-/* SLA breach rows keyed by ticket id — the sheet holds breaches only.
-   Which metric breached inside a given window comes from FEED.clocks, in
-   derive(); the sheet's own breach label covers the ticket's whole life. */
-const SLA_BY_ID = FEED.sla.reduce((a, r) => (a[r.id] = r, a), {});
 
 /* Names that must never appear in a customer list on screen or in a deck —
    a bucket label invites questions it cannot answer. The tickets still count

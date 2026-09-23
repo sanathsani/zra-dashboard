@@ -264,10 +264,6 @@ function chartAgents(host, owners) {
 
 /* ── ordinal buckets (ordered categories → one-hue ramp) ─────────────── */
 const ORD = ['var(--ord2)', 'var(--ord3)', 'var(--ord4)', 'var(--ord5)', 'var(--ord5)'];
-function chartOrdinal(host, items, opts = {}) {
-  chartBars(host, items.map((d, i) => ({ ...d, color: ORD[Math.min(i, ORD.length - 1)] })),
-    { labelWidth: opts.labelWidth || '96px', gap: '8px' });
-}
 
 /* ── donut: part-to-whole, labelled inside the ring ──────────────────── */
 function chartDonut(host, segs, opts = {}) {
