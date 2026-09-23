@@ -569,7 +569,12 @@ function reviewSections() {
 
   out.push({
     id: 's9', title: 'First response and resolution time distribution',
-    sub: 'Time brackets · Zendesk clocks', tag: `${num(s.solved)} solved`,
+    /* The tag counts what the charts count: tickets raised AND solved inside
+       the window, which is Explore's set. s.solved is every solved ticket
+       raised in the window, and those two part company as soon as one of them
+       is solved after the period closes. */
+    sub: 'Time brackets · Zendesk clocks',
+    tag: `${num(D.brackets.hasResponse ? D.brackets.responseTotal : s.solved)} solved in period`,
     ph: 'Speed story: how fast the team is replying and closing, and any outliers worth naming.',
     html: `<div style="${cols(340)}">
       ${card('First Response Time by Time Bracket', "Agent's first reply · solved tickets",

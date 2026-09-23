@@ -162,6 +162,15 @@ function derive(from, to) {
 
   for (const t of rows) {
     const st = t[C.status], isL3 = t[C.lvl] === 1, open = st !== ST.SOLVED;
+    /* Explore's two bracket charts count a ticket only if it was SOLVED
+       inside the window as well as raised in it. Ours counted every solved
+       ticket raised in the window, whenever the solve happened, so the two
+       screens agreed on the day and drifted apart afterwards: a ticket raised
+       on the 19th and solved on the 23rd joined our chart and never joined
+       theirs. Checked against the drill-in — "raised and solved inside the
+       window" is their set exactly, 276 for 276, with none of the 15 tickets
+       solved in the window but raised before it. */
+    const closedInWindow = !open && dayKey(t[C.solved]) <= to;
     if (st === ST.SOLVED) solved++; else if (st === ST.PENDING) pending++; else progress++;
     if (isL3) l3++; else l1++;
     if (t[C.auto]) auto++;
@@ -181,7 +190,7 @@ function derive(from, to) {
        on the calendar) — that difference put eight tickets in 1 - 24 hrs here
        against three in Explore. Column M is still the sheet's own number.
        Solved tickets only, which is Explore's metric: Solved tickets. */
-    if (!open) {
+    if (closedInWindow) {
       let h = null;
       const wait = WAIT_BY_ID[t[C.id]];
       if (wait != null) h = wait / 60;
@@ -196,7 +205,7 @@ function derive(from, to) {
        tickets: it read 30 replied and 246 without where this read 40 and 249,
        and the difference was exactly the fourteen still open. Blank means
        nobody ever replied. */
-    if (HAS_RESPONSE && !open) {
+    if (HAS_RESPONSE && closedInWindow) {
       const v = t[C.response];
       if (v === '' || v == null) frNone++;
       else {
