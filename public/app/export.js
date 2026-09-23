@@ -132,7 +132,7 @@ function deckModel() {
   /* customers × categories — split so a slide never carries more than 14 rows */
   {
     const cats = D.cats.slice().sort((a, b) => a.name.localeCompare(b.name));
-    const rows = D.customersShown.filter(c => c.total > 0);
+    const rows = D.customers.filter(c => c.total > 0);   // matches crossTab: every ticket
     const w = [0.04, 0.2].concat(cats.map(() => (1 - 0.24 - 0.08) / cats.length)).concat([0.08]);
     const align = ['l', 'l'].concat(cats.map(() => 'r')).concat(['r']);
     const head = ['#', 'Customers'].concat(cats.map(c => c.name)).concat(['Total']);

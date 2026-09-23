@@ -56,7 +56,13 @@ function mbox(label, value, foot) {
 function crossTab() {
   /* columns alphabetical, like the tracker sheet */
   const cats = D.cats.slice().sort((a, b) => a.name.localeCompare(b.name));
-  const rows = D.customersShown.filter(c => c.total > 0);
+  /* Every ticket, including the ones filed against an account that is hidden
+     from the customer lists — our own organisation, or a blank. A matrix
+     whose grand total is one short of the period is a matrix somebody has to
+     explain, and the explanation is always "a ticket was filed under the
+     wrong account", which belongs in the sheet, not under the table. Lists
+     and charts elsewhere still leave those names out. */
+  const rows = D.customers.filter(c => c.total > 0);
   const colTotal = cats.map(cat => rows.reduce((a, c) => a + (c.cats[cat.id] || 0), 0));
   const grand = colTotal.reduce((a, b) => a + b, 0);
   /* one hue, light → dark with magnitude — the cell colour IS the reading */
@@ -479,7 +485,7 @@ function reviewSections() {
 
   out.push({
     id: 's4', title: 'Customers by issue category', sub: 'Every account against every category',
-    tag: `${D.customersShown.length} accounts · ${D.cats.length} categories`,
+    tag: `${D.customers.filter(c => c.total > 0).length} accounts · ${D.cats.length} categories`,
     ph: 'The accounts whose pattern is worth naming, and what is being done about them.',
     html: crossTab(),
   });
